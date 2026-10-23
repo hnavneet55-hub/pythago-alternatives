@@ -20,13 +20,27 @@ const Body = z.object({
         conversionsValue: z.coerce.number(),
       }),
     )
-    .max(5000), // the script sends batches of 4000
+    .max(10000), // the script sends batches of 5000 (~1 MB, well under the 4.5 MB body limit)
 });
 
-export async function POST(request: Request) {
+async function storeForKey(request: Request) {
   const key = request.headers.get("x-ingest-key");
-  if (!key) return Response.json({ error: "missing key" }, { status: 401 });
+  if (!key) return null;
   const [store] = await sql<{ id: number }[]>`select id from stores where ingest_key = ${key}`;
+  return store ?? null;
+}
+
+// The script asks for the last day it delivered, to decide between a quick or a full refresh.
+export async function GET(request: Request) {
+  const store = await storeForKey(request);
+  if (!store) return Response.json({ error: "invalid key" }, { status: 401 });
+  const [row] = await sql<{ last_day: string | null }[]>`
+    select max(day)::text as last_day from ad_stats where store_id = ${store.id}`;
+  return Response.json({ lastDay: row.last_day });
+}
+
+export async function POST(request: Request) {
+  const store = await storeForKey(request);
   if (!store) return Response.json({ error: "invalid key" }, { status: 401 });
 
   const parsed = Body.safeParse(await request.json().catch(() => null));
@@ -58,9 +72,10 @@ export async function POST(request: Request) {
   }
   const values = [...merged.values()];
 
-  if (values.length) {
+  // 13 columns per row; keep each statement under Postgres' 65,535 parameter limit.
+  for (let i = 0; i < values.length; i += 2000) {
     await sql`
-      insert into ad_stats ${sql(values)}
+      insert into ad_stats ${sql(values.slice(i, i + 2000))}
       on conflict (store_id, day, item_id, campaign_id) do update set
         campaign_name = excluded.campaign_name, impressions = excluded.impressions, clicks = excluded.clicks,
         cost = excluded.cost, conversions = excluded.conversions, conv_value = excluded.conv_value`;

@@ -99,8 +99,12 @@ async function StoreList() {
               <h3 className="mb-1 text-sm font-semibold">Google Ads script for this store</h3>
               <p className="mb-3 text-sm text-slate-600">
                 In the store&apos;s Google Ads account go to <strong>Tools → Bulk actions → Scripts</strong>, create a new script, paste this,
-                authorize it, and set the frequency to <strong>Hourly</strong>. For the first run change <code>DAYS_BACK</code> to 90 to import
-                history. The key in this script is a password: don&apos;t share it.
+                authorize it, click <strong>Run</strong> once (the first run loads 35 days and can take 5–20 minutes), then set the frequency to{" "}
+                <strong>Hourly</strong>. No editing is needed. Full steps are in the{" "}
+                <Link href="/guide#part-3" className="font-medium text-violet-700 hover:underline">
+                  setup guide
+                </Link>
+                . The key in this script is a password: don&apos;t share it.
               </p>
               <CopyBlock text={adsScript(endpoint, s.ingest_key)} />
             </div>

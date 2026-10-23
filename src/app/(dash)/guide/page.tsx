@@ -413,17 +413,7 @@ export default function GuidePage() {
           </p>
         </Step>
 
-        <Step n="3.5" title="First run only: import 90 days of history">
-          <p>Find this line near the top of the script:</p>
-          <CopyLine value="var DAYS_BACK = 35;" />
-          <p>Change it to:</p>
-          <CopyLine value="var DAYS_BACK = 90;" />
-          <p>
-            You&apos;ll change it back in step 3.8. Keeping 90 on every hourly run works too, but each run takes longer.
-          </p>
-        </Step>
-
-        <Step n="3.6" title="Authorize the script">
+        <Step n="3.5" title="Authorize the script">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
               A banner says the script needs authorization. Click <Path>Authorize</Path>.
@@ -435,29 +425,31 @@ export default function GuidePage() {
             </li>
           </ol>
           <p>
-            Then click <Path>Save</Path>.
+            Then click <Path>Save</Path>. You don&apos;t need to change anything inside the script.
           </p>
         </Step>
 
-        <Step n="3.7" title="Run it once and check the log">
+        <Step n="3.6" title="Run it once and check the log">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
               Click <Path>Run</Path> (bottom right). If asked, confirm you want to run it, not just preview it.
             </li>
             <li>
-              Wait until the status says <strong>Completed</strong>. With 90 days of history this can take a few minutes.
+              Wait until the status says <strong>Completed</strong>. The first run loads the <strong>last 35 days</strong>, which takes{" "}
+              <strong>5–20 minutes</strong> for big catalogs (thousands of variants). That&apos;s normal. Later hourly runs only refresh the last 3
+              days and take a minute or two.
             </li>
             <li>
-              Open the <Path>Logs</Path>. You should see a line like:
+              Open the <Path>Logs</Path>. You should see lines like:
               <div className="mt-2">
-                <code className="block rounded-lg bg-slate-900 px-3 py-2 font-mono text-[12.5px] text-emerald-300">
-                  Sent 48210 rows for 2026-07-26 to 2026-10-23
+                <code className="block whitespace-pre rounded-lg bg-slate-900 px-3 py-2 font-mono text-[12.5px] text-emerald-300">
+                  {"AdProfit full refresh: 2026-09-19 to 2026-10-23\nSent 315000 rows for 2026-09-19 to 2026-10-23 in 640s"}
                 </code>
               </div>
             </li>
           </ol>
           <p>
-            If you see <Code>AdProfit upload failed (401)</Code> or <Code>Sent 0 rows</Code>, see{" "}
+            If you see <Code>AdProfit upload failed (401)</Code>, <Code>AdProfit check failed</Code> or <Code>Sent 0 rows</Code>, see{" "}
             <a className="text-violet-700 hover:underline" href="#help">
               Troubleshooting
             </a>
@@ -465,14 +457,7 @@ export default function GuidePage() {
           </p>
         </Step>
 
-        <Step n="3.8" title="Set the history back to 35 days">
-          <p>
-            Change <Code>var DAYS_BACK = 90;</Code> back to <Code>var DAYS_BACK = 35;</Code> and click <Path>Save</Path>. From now on, each
-            hourly run refreshes the last 35 days, which covers the 30-day column and late conversion updates.
-          </p>
-        </Step>
-
-        <Step n="3.9" title="Run it every hour">
+        <Step n="3.7" title="Run it every hour">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
               Go back to the list at <Path>Tools → Bulk actions → Scripts</Path>.
@@ -484,12 +469,24 @@ export default function GuidePage() {
               Choose <Path>Hourly</Path> and click <Path>Save</Path>.
             </li>
           </ol>
+          <p>What the hourly schedule does by itself:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              <strong>Every hour:</strong> refreshes the last 3 days (quick).
+            </li>
+            <li>
+              <strong>Once a day at 3am</strong> (Google Ads account time): refreshes the last 35 days, so late Google conversions are counted.
+            </li>
+            <li>
+              <strong>After a pause of more than 3 days:</strong> automatically does a 35-day refresh to fill the gap.
+            </li>
+          </ul>
           <Note tone="warn">
             Skipping this step is the most common mistake. Without it, data only updates when someone runs the script by hand.
           </Note>
         </Step>
 
-        <Step n="3.10" title="Confirm in AdProfit">
+        <Step n="3.8" title="Confirm in AdProfit">
           <p>
             Open{" "}
             <Link href="/settings" className="font-medium text-violet-700 hover:underline">
@@ -501,6 +498,31 @@ export default function GuidePage() {
           <p>
             The dashboard now shows this store&apos;s numbers in the <strong>Google Ads account&apos;s currency</strong>.
           </p>
+        </Step>
+
+        <Step n="3.9" title="Optional: import older history (more than 35 days)">
+          <p>Only needed if you want to look at date ranges older than 35 days. Do this once, by hand:</p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>Open the script in Google Ads.</li>
+            <li>Find this line near the top:</li>
+          </ol>
+          <CopyLine value="var BACKFILL_FROM = '';" />
+          <p>Put the first day you want inside the quotes, for example:</p>
+          <CopyLine value="var BACKFILL_FROM = '2026-07-01';" />
+          <ol className="list-decimal space-y-1 pl-5" start={3}>
+            <li>
+              Click <Path>Save</Path>, then <Path>Run</Path>.
+            </li>
+            <li>
+              <strong>If the log says “Stopped early to stay under the 30-minute limit”:</strong> Google stops scripts after 30 minutes, so
+              big imports are done in parts. The log tells you exactly what to type for <Code>BACKFILL_FROM</Code> and{" "}
+              <Code>BACKFILL_TO</Code> next. Change them, Save, and Run again until the log shows <em>Sent … rows</em> with no “Stopped early”
+              line.
+            </li>
+            <li>
+              <strong>Important:</strong> set both back to empty (<Code>{"''"}</Code>) and Save. Otherwise every hourly run repeats the import.
+            </li>
+          </ol>
         </Step>
       </Part>
 
@@ -613,11 +635,31 @@ export default function GuidePage() {
               manages the app).
             </p>
           </Problem>
-          <Problem q="Google Ads log says “AdProfit upload failed (401): invalid key”">
+          <Problem q="Google Ads log says “AdProfit upload failed (401)” or “AdProfit check failed (401)”: invalid key">
             <p>
               The key in the script doesn&apos;t match any store. Either someone clicked <em>New script key</em>, the store was removed, or the
               script was copied from another store. Copy the store&apos;s script again (<a className="text-violet-700 hover:underline" href="#part-3">step 3.1</a>), replace the whole script in Google Ads, then Save and Run.
             </p>
+          </Problem>
+          <Problem q="The script takes a long time to run">
+            <ul className="list-disc space-y-1 pl-5">
+              <li>
+                <strong>First run and the daily 3am run</strong> read 35 days, which can take 5–20 minutes for catalogs with thousands of
+                variants. That&apos;s expected.
+              </li>
+              <li>
+                <strong>Normal hourly runs</strong> should take a minute or two. If every run is slow, check the first log line. It should say{" "}
+                <Code>quick refresh</Code>. If it says <Code>backfill</Code>, set <Code>BACKFILL_FROM</Code> and <Code>BACKFILL_TO</Code> back to{" "}
+                <Code>{"''"}</Code> (step 3.9).
+              </li>
+              <li>
+                <strong>Old version of the script?</strong> If your script contains <Code>DAYS_BACK</Code>, it&apos;s the old version, which
+                re-reads 35 days every hour. Copy the script again from Stores &amp; setup and replace the whole script in Google Ads.
+              </li>
+              <li>
+                Google sometimes queues scripts for a few minutes before they start. That waiting time isn&apos;t the script itself.
+              </li>
+            </ul>
           </Problem>
           <Problem q="Google Ads log says “Sent 0 rows”">
             <ul className="list-disc space-y-1 pl-5">
@@ -664,7 +706,7 @@ export default function GuidePage() {
           <Problem q="“Last Google Ads sync” is more than 2 hours old">
             <p>
               The script isn&apos;t running hourly. In Google Ads, go to <Path>Tools → Bulk actions → Scripts</Path>, check the{" "}
-              <strong>Frequency</strong> is <em>Hourly</em> (step 3.9), and open the script&apos;s run history for errors.
+              <strong>Frequency</strong> is <em>Hourly</em> (step 3.7), and open the script&apos;s run history for errors.
             </p>
           </Problem>
         </div>
@@ -702,7 +744,7 @@ async function Progress() {
     if (!s.products_synced_at) return { text: "Press “Sync now” (step 2.3)", href: "#part-2", tone: "text-amber-700" };
     if (!s.ads_synced_at) return { text: "Add the Google Ads script (part 3)", href: "#part-3", tone: "text-amber-700" };
     if (s.ads_stale)
-      return { text: "Script not running hourly? (step 3.9)", href: "#part-3", tone: "text-amber-700" };
+      return { text: "Script not running hourly? (step 3.7)", href: "#part-3", tone: "text-amber-700" };
     return { text: "All set ✓", href: "", tone: "text-emerald-700" };
   };
 
