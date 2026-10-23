@@ -425,12 +425,25 @@ export async function getStores() {
 }
 
 /** Sync products then orders for every store within the time budget. */
+const PRODUCT_REFRESH_MS = 6 * 3_600_000;
+
+/**
+ * Hourly sync within a time budget. Stores that waited longest go first, so with many stores
+ * none is starved; product catalogs refresh every 6 hours (or when unsynced), orders every run.
+ */
 export async function syncAllStores(budgetMs = 240_000) {
   const deadline = Date.now() + budgetMs;
   const results = [];
-  for (const store of await getStores()) {
+  const stores = await sql<(StoreRow & { products_synced_at: Date | null })[]>`
+    select * from stores order by coalesce(orders_synced_at, 'epoch'::timestamptz), name`;
+  for (const store of stores) {
+    if (Date.now() > deadline) {
+      results.push({ store: store.name, skipped: "time budget used; next run" });
+      continue;
+    }
     try {
-      const products = await syncProducts(store);
+      const stale = !store.products_synced_at || Date.now() - store.products_synced_at.getTime() > PRODUCT_REFRESH_MS;
+      const products = stale || !store.timezone ? await syncProducts(store) : null;
       const orders = await syncOrders(store, deadline);
       await sql`update stores set last_sync_error = null where id = ${store.id}`;
       results.push({ store: store.name, products, ...orders });
@@ -439,7 +452,6 @@ export async function syncAllStores(budgetMs = 240_000) {
       await sql`update stores set last_sync_error = ${message} where id = ${store.id}`;
       results.push({ store: store.name, error: message });
     }
-    if (Date.now() > deadline) break;
   }
   return results;
 }

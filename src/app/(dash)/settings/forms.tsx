@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { addStore, importCogsNow, removeStore, rotateIngestKey, setDefaultCogs, setTargets, syncStore, type ActionState } from "./actions";
+import { addStore, addStoresBulk, importCogsNow, removeStore, rotateIngestKey, setDefaultCogs, setTargets, syncStore, type ActionState } from "./actions";
 import { NICHES } from "@/lib/decisions";
 
 const input =
@@ -205,6 +205,47 @@ export function TargetsForm({ storeId, niche, cogs, roas }: { storeId: number; n
         </span>
       )}
       <Message state={state} />
+    </form>
+  );
+}
+
+export function BulkAddForm() {
+  const [state, action, pending] = useActionState(addStoresBulk, null);
+  return (
+    <form
+      action={action}
+      onSubmit={(e) => {
+        // Keep the secrets out of the page once they're saved.
+        const area = e.currentTarget.elements.namedItem("text") as HTMLTextAreaElement;
+        setTimeout(() => (area.value = ""), 0);
+      }}
+      className="space-y-3"
+    >
+      <textarea
+        name="text"
+        required
+        rows={10}
+        spellCheck={false}
+        autoComplete="off"
+        placeholder={"Store name\nyour-store.myshopify.com\nClient ID - ...\nSecret - shpss_...\n\nNext store name\n..."}
+        className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-[13px] outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+      />
+      <div className="flex flex-wrap items-center gap-4">
+        <button disabled={pending} className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60">
+          {pending ? "Saving…" : "Add stores"}
+        </button>
+        {state?.ok && <span className="text-sm text-emerald-700">{state.ok}</span>}
+        {state?.error && <span className="text-sm text-red-600">{state.error}</span>}
+      </div>
+      {state?.lines && state.lines.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-700">
+          {state.lines.map((l) => (
+            <li key={l} className={l.startsWith("Skipped") ? "text-amber-700" : ""}>
+              {l}
+            </li>
+          ))}
+        </ul>
+      )}
     </form>
   );
 }

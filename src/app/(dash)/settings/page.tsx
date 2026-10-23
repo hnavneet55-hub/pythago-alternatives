@@ -4,7 +4,7 @@ import { sql } from "@/lib/db";
 import { adsScript } from "@/lib/ads-script";
 import { timeAgo } from "@/lib/format";
 import { appOrigin } from "@/lib/origin";
-import { AddStoreForm, CogsForm, CopyBlock, ImportCogsButton, StoreActions, TargetsForm } from "./forms";
+import { AddStoreForm, BulkAddForm, CogsForm, CopyBlock, ImportCogsButton, StoreActions, TargetsForm } from "./forms";
 import { profitSheetConfigured } from "@/lib/profit-sheet";
 
 export const metadata = { title: "Stores & setup · AdProfit" };
@@ -43,6 +43,15 @@ export default function SettingsPage() {
           . To change a store&apos;s credentials, submit this form again with the same Shopify domain. Its data is kept.
         </p>
         <AddStoreForm />
+      </section>
+      <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
+        <h2 className="mb-1 font-semibold">Bulk add stores</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          Paste several stores at once, one block per store: the store name on its own line, then its <code>.myshopify.com</code> domain,{" "}
+          <code>Client ID - …</code> and <code>Secret - …</code> (currency lines are ignored). A store that already exists keeps its data and
+          gets the new credentials. Secrets are encrypted before they&apos;re saved and the box clears after saving.
+        </p>
+        <BulkAddForm />
       </section>
     </div>
   );

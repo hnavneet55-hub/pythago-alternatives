@@ -6,6 +6,7 @@ import { sql } from "@/lib/db";
 import { encrypt, randomKey } from "@/lib/crypto";
 import { syncFxRates } from "@/lib/fx";
 import { importProfitSheetCogs } from "@/lib/profit-sheet";
+import { parseStorePaste } from "@/lib/store-paste";
 import { syncOrders, syncProducts, type StoreRow } from "@/lib/shopify";
 
 const StoreInput = z.object({
@@ -115,4 +116,28 @@ export async function setTargets(_prev: ActionState, form: FormData): Promise<Ac
   await sql`update stores set niche = ${niche || null}, target_cogs_pct = ${cogs}, target_roas = ${roas} where id = ${storeId}`;
   refresh();
   return { ok: "Saved" };
+}
+
+export type BulkAddResult = { ok?: string; error?: string; lines?: string[] } | null;
+
+/** Adds (or updates the credentials of) every store in a pasted block of store details. */
+export async function addStoresBulk(_prev: BulkAddResult, form: FormData): Promise<BulkAddResult> {
+  const { stores, problems } = parseStorePaste(String(form.get("text") ?? ""));
+  if (stores.length === 0) return { error: "No complete store found: each needs a name, a .myshopify.com domain, a Client ID and a secret", lines: problems };
+  const lines: string[] = [];
+  for (const s of stores) {
+    const [row] = await sql<{ inserted: boolean }[]>`
+      insert into stores (name, shop_domain, client_id, client_secret_enc, access_token_enc, ingest_key)
+      values (${s.name}, ${s.shopDomain}, ${s.clientId}, ${encrypt(s.clientSecret!)}, null, ${randomKey()})
+      on conflict (shop_domain) do update set
+        name = excluded.name, client_id = excluded.client_id,
+        client_secret_enc = excluded.client_secret_enc, access_token_enc = null, last_sync_error = null
+      returning (xmax = 0) as inserted`;
+    lines.push(`${s.name} (${s.shopDomain}): ${row.inserted ? "added" : "credentials updated"}`);
+  }
+  refresh();
+  return {
+    ok: `${stores.length} ${stores.length === 1 ? "store" : "stores"} saved. Open each one below and press “Sync now”, or wait for the hourly sync.`,
+    lines: [...lines, ...problems.map((p) => `Skipped ${p}`)],
+  };
 }
