@@ -457,7 +457,7 @@ export default function GuidePage() {
           </p>
         </Step>
 
-        <Step n="3.7" title="Run it every hour">
+        <Step n="3.7" title="Schedule it (daily or hourly)">
           <ol className="list-decimal space-y-1 pl-5">
             <li>
               Go back to the list at <Path>Tools → Bulk actions → Scripts</Path>.
@@ -466,10 +466,16 @@ export default function GuidePage() {
               In the <strong>Frequency</strong> column for your script, click the pencil icon.
             </li>
             <li>
-              Choose <Path>Hourly</Path> and click <Path>Save</Path>.
+              Choose <Path>Daily</Path> at an early hour such as <strong>3am</strong> (our team&apos;s setting), or <Path>Hourly</Path> if you
+              want same-day ad spend. Click <Path>Save</Path>.
             </li>
           </ol>
-          <p>What the hourly schedule does by itself:</p>
+          <Note>
+            <strong>Daily at 3–5am</strong> means yesterday is complete each morning. In the dashboard, use ranges that end{" "}
+            <em>yesterday</em> (the default). <em>Today</em> includes Shopify sales but not yet today&apos;s ad spend, so ROAS would look too
+            high.
+          </Note>
+          <p>If you choose Hourly, the new script handles it by itself:</p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
               <strong>Every hour:</strong> refreshes the last 3 days (quick).
@@ -482,7 +488,7 @@ export default function GuidePage() {
             </li>
           </ul>
           <Note tone="warn">
-            Skipping this step is the most common mistake. Without it, data only updates when someone runs the script by hand.
+            Skipping the schedule is the most common mistake. Without it, data only updates when someone runs the script by hand.
           </Note>
         </Step>
 
@@ -703,10 +709,10 @@ export default function GuidePage() {
               still split by country. To fix it, grant protected customer data with the <em>Address</em> field (<a className="text-violet-700 hover:underline" href="#part-1">step 1.3</a>), release, approve in the store, and sync again.
             </p>
           </Problem>
-          <Problem q="“Last Google Ads sync” is more than 2 hours old">
+          <Problem q="“Last Google Ads sync” is more than a day old">
             <p>
-              The script isn&apos;t running hourly. In Google Ads, go to <Path>Tools → Bulk actions → Scripts</Path>, check the{" "}
-              <strong>Frequency</strong> is <em>Hourly</em> (step 3.7), and open the script&apos;s run history for errors.
+              The script hasn&apos;t run on schedule. In Google Ads, go to <Path>Tools → Bulk actions → Scripts</Path>, check the{" "}
+              <strong>Frequency</strong> is set (<em>Daily</em> or <em>Hourly</em>, step 3.7), and open the script&apos;s run history for errors.
             </p>
           </Problem>
         </div>
@@ -735,7 +741,7 @@ async function Progress() {
     }[]
   >`select id, name, shop_domain, shop_currency, ads_currency, ads_customer_id, products_synced_at,
            orders_synced_at, ads_synced_at, last_sync_error,
-           coalesce(ads_synced_at < now() - interval '2 hours', false) as ads_stale
+           coalesce(ads_synced_at < now() - interval '26 hours', false) as ads_stale
     from stores order by name`;
   const endpoint = `${await appOrigin()}/api/ingest/google-ads`;
 
@@ -744,7 +750,7 @@ async function Progress() {
     if (!s.products_synced_at) return { text: "Press “Sync now” (step 2.3)", href: "#part-2", tone: "text-amber-700" };
     if (!s.ads_synced_at) return { text: "Add the Google Ads script (part 3)", href: "#part-3", tone: "text-amber-700" };
     if (s.ads_stale)
-      return { text: "Script not running hourly? (step 3.7)", href: "#part-3", tone: "text-amber-700" };
+      return { text: "No Google Ads data for over a day: is the script scheduled? (step 3.7)", href: "#part-3", tone: "text-amber-700" };
     return { text: "All set ✓", href: "", tone: "text-emerald-700" };
   };
 

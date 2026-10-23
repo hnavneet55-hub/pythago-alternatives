@@ -100,7 +100,7 @@ async function StoreList() {
               <p className="mb-3 text-sm text-slate-600">
                 In the store&apos;s Google Ads account go to <strong>Tools → Bulk actions → Scripts</strong>, create a new script, paste this,
                 authorize it, click <strong>Run</strong> once (the first run loads 35 days and can take 5–20 minutes), then set the frequency to{" "}
-                <strong>Hourly</strong>. No editing is needed. Full steps are in the{" "}
+                <strong>Daily (3am)</strong> or <strong>Hourly</strong>. No editing is needed. Full steps are in the{" "}
                 <Link href="/guide#part-3" className="font-medium text-violet-700 hover:underline">
                   setup guide
                 </Link>
