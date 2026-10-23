@@ -5,6 +5,7 @@ import { z } from "zod";
 import { sql } from "@/lib/db";
 import { encrypt, randomKey } from "@/lib/crypto";
 import { syncFxRates } from "@/lib/fx";
+import { importProfitSheetCogs } from "@/lib/profit-sheet";
 import { syncOrders, syncProducts, type StoreRow } from "@/lib/shopify";
 
 const StoreInput = z.object({
@@ -90,4 +91,15 @@ export async function setDefaultCogs(_prev: ActionState, form: FormData): Promis
   await sql`update stores set default_cogs_pct = ${pct} where id = ${storeId}`;
   refresh();
   return { ok: `Saved: ${pct}% of revenue` };
+}
+
+export async function importCogsNow(): Promise<ActionState> {
+  const res = await importProfitSheetCogs();
+  refresh();
+  if ("skipped" in res) return { error: `Not connected: ${res.skipped}` };
+  const errors = res.results.filter((r) => "error" in r && r.error);
+  const done = res.results.filter((r) => "matched" in r);
+  const summary = done.map((r) => `${r.store}: ${"matched" in r ? r.matched : 0} lines`).join(", ");
+  if (errors.length) return { error: `${errors.map((r) => `${r.store}: ${"error" in r ? r.error : ""}`).join("; ")}${summary ? ` (ok: ${summary})` : ""}` };
+  return { ok: summary ? `Imported. ${summary}` : "No matching stores in Profit-Sheet" };
 }

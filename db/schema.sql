@@ -127,3 +127,13 @@ $$;
 -- Fallback cost of goods as % of revenue, used when a variant has no Shopify cost per item.
 alter table stores add column if not exists default_cogs_pct numeric
   check (default_cogs_pct is null or (default_cogs_pct >= 0 and default_cogs_pct < 100));
+
+-- Cost of goods from the Profit-Sheet app, per order line, in shop currency.
+--   invoice        supplier-invoiced order cost, split across the order's lines
+--   invoice_avg    product's average invoiced cost per unit (order not invoiced yet)
+--   sheet_estimate Profit-Sheet SKU cost estimate
+alter table order_lines add column if not exists ext_cogs numeric;
+alter table order_lines add column if not exists ext_cogs_source text;
+alter table products add column if not exists invoiced_unit_cost numeric;
+alter table stores add column if not exists cogs_imported_at timestamptz;
+alter table stores add column if not exists cogs_import_error text;

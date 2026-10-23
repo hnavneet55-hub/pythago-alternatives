@@ -1,5 +1,6 @@
 import { syncAllStores } from "@/lib/shopify";
 import { syncFxRates } from "@/lib/fx";
+import { importProfitSheetCogs } from "@/lib/profit-sheet";
 import { safeEqual } from "@/lib/crypto";
 
 export const maxDuration = 300;
@@ -11,6 +12,8 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
   const fx = await syncFxRates().catch((e: Error) => `error: ${e.message}`);
-  const stores = await syncAllStores();
-  return Response.json({ fx, stores });
+  const stores = await syncAllStores(200_000);
+  // After the order sync, so new orders get their cost in the same run.
+  const cogs = await importProfitSheetCogs().catch((e: Error) => ({ error: e.message }));
+  return Response.json({ fx, stores, cogs });
 }

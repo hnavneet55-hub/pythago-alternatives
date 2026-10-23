@@ -55,9 +55,10 @@ const NUMERIC_KEYS = [
  * presentment amount when it is already in the display currency, otherwise the shop
  * amount converted with the ECB rate for the order day.
  *
- * Cost of goods per unit: product override, else Shopify "cost per item", else the
- * store's default % of revenue. Revenue with none of these is reported in rev_no_cogs
- * so profit is never computed with a silent zero cost.
+ * Cost of goods per line: the cost imported from Profit-Sheet (supplier invoice, the
+ * product's average invoiced cost, or its SKU estimate), else the product override, else
+ * Shopify "cost per item", else the store's default % of revenue. Revenue with none of
+ * these is reported in rev_no_cogs so profit is never computed with a silent zero cost.
  */
 export async function getReport(f: ReportFilters, level: "product" | "variant" = "product") {
   const variantMode = level === "variant";
@@ -125,7 +126,8 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       ) r
       cross join lateral (
         select r.rev,
-               case when coalesce(p.cogs_override, v.unit_cost) is not null
+               case when o.ext_cogs is not null then o.ext_cogs * rt.shop_rate
+                    when coalesce(p.cogs_override, v.unit_cost) is not null
                       then o.quantity * coalesce(p.cogs_override, v.unit_cost) * rt.shop_rate
                     when rt.default_cogs_pct is not null then r.rev * rt.default_cogs_pct / 100
                end as cogs
@@ -167,7 +169,9 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       p.status, p.image_url, coalesce(p.tags, '{}') as tags, coalesce(p.variant_count, 0) as variant_count,
       ${variantMode ? sql`v.price` : sql`p.price`} * fx(s.shop_currency, ${cur}, b.d_to) as price,
       coalesce(
-        ${variantMode ? sql`coalesce(p.cogs_override, v.unit_cost)` : sql`coalesce(p.cogs_override, pc.avg_cost)`},
+        ${variantMode
+          ? sql`coalesce(p.invoiced_unit_cost, p.cogs_override, v.unit_cost)`
+          : sql`coalesce(p.invoiced_unit_cost, p.cogs_override, pc.avg_cost)`},
         ${variantMode ? sql`v.price` : sql`p.price`} * s.default_cogs_pct / 100
       ) * fx(s.shop_currency, ${cur}, b.d_to) as unit_cost,
       coalesce(a.cost, 0) as cost, coalesce(a.impressions, 0) as impressions, coalesce(a.clicks, 0) as clicks,
