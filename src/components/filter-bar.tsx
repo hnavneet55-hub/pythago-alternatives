@@ -65,6 +65,7 @@ export function FilterBar({ countries, tags, showProductFilters = true }: Props)
             <option value="ACTIVE">Active</option>
             <option value="DRAFT">Draft</option>
             <option value="ARCHIVED">Archived</option>
+            <option value="UNLISTED">Unlisted</option>
             <option value="DELETED">Deleted</option>
           </select>
         )}

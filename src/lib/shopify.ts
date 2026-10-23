@@ -395,3 +395,39 @@ export async function syncAllStores(budgetMs = 240_000) {
   }
   return results;
 }
+
+// ---------------------------------------------------------------- product status
+
+export const PRODUCT_STATUSES = ["ACTIVE", "DRAFT", "ARCHIVED", "UNLISTED"] as const;
+export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
+
+const SET_STATUS_MUTATION = `mutation SetStatus($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
+    product { id status }
+    userErrors { field message }
+  }
+}`;
+
+type SetStatusData = {
+  productUpdate: { product: { id: string; status: string } | null; userErrors: { field: string[] | null; message: string }[] };
+};
+
+/** Changes a product's status in Shopify and in our copy. Needs the write_products scope. */
+export async function setProductStatus(store: StoreRow, productId: string, status: ProductStatus) {
+  let data: SetStatusData;
+  try {
+    data = await graphql<SetStatusData>(store, SET_STATUS_MUTATION, {
+      product: { id: `gid://shopify/Product/${productId}`, status },
+    });
+  } catch (e) {
+    if ((e as { accessDenied?: boolean }).accessDenied) {
+      throw new Error("Shopify denied the change: add the write_products scope to the app (Setup guide, step 1.3) and approve it in the store.");
+    }
+    throw e;
+  }
+  const errors = data.productUpdate.userErrors;
+  if (errors.length) throw new Error(errors.map((e) => e.message).join("; "));
+  const newStatus = data.productUpdate.product?.status ?? status;
+  await sql`update products set status = ${newStatus}, updated_at = now() where store_id = ${store.id} and id = ${productId}`;
+  return newStatus;
+}

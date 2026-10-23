@@ -4,6 +4,8 @@ import { FilterBar } from "@/components/filter-bar";
 import { MetricsTable } from "@/components/metrics-table";
 import { SummaryCards } from "@/components/summary-cards";
 import { StoreSwitcher } from "@/components/store-switcher";
+import { BulkStatusBar } from "@/components/bulk-status-bar";
+import { FullscreenPanel } from "@/components/fullscreen-panel";
 import { getCountries, hrefWith, loadDashboard, storeCurrency, type SearchParams } from "@/lib/dashboard";
 import { timeAgo } from "@/lib/format";
 
@@ -94,32 +96,36 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
 
       <SummaryCards t={totals} currency={scope.currency} />
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-xs">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div>
-            <h2 className="font-semibold">Product performance</h2>
-            <p className="text-sm text-slate-500">
-              Showing {pageRows.length} of {rows.length} products · all SKUs of a product are combined
-            </p>
-          </div>
-          {pages > 1 && (
-            <div className="flex items-center gap-2 text-sm">
-              {page > 1 && (
-                <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page - 1) })}>
-                  ← Prev
-                </Link>
-              )}
-              <span className="text-slate-500">
-                Page {page} of {pages}
-              </span>
-              {page < pages && (
-                <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page + 1) })}>
-                  Next →
-                </Link>
-              )}
+      <FullscreenPanel
+        toolbar={
+          <>
+            <div>
+              <h2 className="font-semibold">Product performance</h2>
+              <p className="text-sm text-slate-500">
+                Showing {pageRows.length} of {rows.length} products · all SKUs of a product are combined
+              </p>
             </div>
-          )}
-        </div>
+            <BulkStatusBar />
+            {pages > 1 && (
+              <div className="flex items-center gap-2 text-sm">
+                {page > 1 && (
+                  <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page - 1) })}>
+                    ← Prev
+                  </Link>
+                )}
+                <span className="text-slate-500">
+                  Page {page} of {pages}
+                </span>
+                {page < pages && (
+                  <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page + 1) })}>
+                    Next →
+                  </Link>
+                )}
+              </div>
+            )}
+          </>
+        }
+      >
         <MetricsTable
           rows={pageRows}
           currency={scope.currency}
@@ -128,9 +134,10 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
           sort={params.sort}
           dir={params.dir}
           sortHref={(key, dir) => hrefWith("/", sp, { sort: key, dir, page: null })}
+          selectable
           productHref={(r) => hrefWith(`/products/${r.store_id}/${r.product_id}`, sp, { page: null, q: null, sort: null, dir: null, status: null, tag: null })}
         />
-      </section>
+      </FullscreenPanel>
     </div>
   );
 }

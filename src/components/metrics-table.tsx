@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BULK_FORM_ID, SelectAllCheckbox } from "@/components/bulk-status-bar";
 import type { DashboardRow } from "@/lib/dashboard";
 import { int, money, pct, ratio, roasTone } from "@/lib/format";
 
@@ -63,6 +64,7 @@ const STATUS_TONE: Record<string, string> = {
   DRAFT: "bg-slate-100 text-slate-600 ring-slate-200",
   ARCHIVED: "bg-amber-50 text-amber-700 ring-amber-200",
   DELETED: "bg-red-50 text-red-700 ring-red-200",
+  UNLISTED: "bg-sky-50 text-sky-700 ring-sky-200",
 };
 
 export function MetricsTable({
@@ -74,6 +76,7 @@ export function MetricsTable({
   dir,
   sortHref,
   productHref,
+  selectable = false,
 }: {
   rows: DashboardRow[];
   currency: string;
@@ -83,6 +86,7 @@ export function MetricsTable({
   dir: "asc" | "desc";
   sortHref: (key: string, dir: "asc" | "desc") => string;
   productHref?: (r: DashboardRow) => string;
+  selectable?: boolean; // product checkboxes for the bulk status bar
 }) {
   const head = (key: string, label: string, title?: string, extra = "") => {
     const active = sort === key;
@@ -98,7 +102,7 @@ export function MetricsTable({
   };
 
   return (
-    <div className="max-h-[75vh] overflow-auto rounded-b-xl">
+    <div className="max-h-[75vh] overflow-auto rounded-b-xl bg-white">
       <table className="w-full border-separate border-spacing-0 text-right text-[13px] tabular-nums">
         <thead className="sticky top-0 z-20 bg-white text-[11px] uppercase tracking-wide text-slate-500">
           <tr>
@@ -112,7 +116,18 @@ export function MetricsTable({
             <th />
           </tr>
           <tr className="[&>th]:border-b [&>th]:border-slate-200">
-            {head("title", mode === "product" ? "Product" : "Variant / SKU", undefined, "sticky left-0 z-30 bg-white text-left min-w-72")}
+            {selectable ? (
+              <th className="sticky left-0 z-30 min-w-72 whitespace-nowrap bg-white px-3 py-2 text-left font-medium">
+                <div className="flex items-center gap-3">
+                  <SelectAllCheckbox />
+                  <Link href={sortHref("title", sort === "title" && dir === "desc" ? "asc" : "desc")} scroll={false} className="hover:text-violet-700">
+                    Product {sort === "title" && (dir === "desc" ? "↓" : "↑")}
+                  </Link>
+                </div>
+              </th>
+            ) : (
+              head("title", mode === "product" ? "Product" : "Variant / SKU", undefined, "sticky left-0 z-30 bg-white text-left min-w-72")
+            )}
             {showStore && head("store_name", "Store", undefined, "text-left")}
             {mode === "product" && head("status", "Status", undefined, "text-left")}
             {mode === "product" ? head("variant_count", "Variants") : head("unit_cost", "Unit cost")}
@@ -131,6 +146,16 @@ export function MetricsTable({
             <tr key={`${r.store_id}:${r.key_id}`} className="group [&>td]:border-b [&>td]:border-slate-100 hover:[&>td]:bg-slate-50">
               <td className="sticky left-0 z-10 bg-white px-3 py-2 text-left">
                 <div className="flex items-center gap-3">
+                  {selectable && (
+                    <input
+                      type="checkbox"
+                      name="sel"
+                      value={`${r.store_id}:${r.product_id}`}
+                      form={BULK_FORM_ID}
+                      aria-label={`Select ${r.title}`}
+                      className="h-4 w-4 shrink-0 accent-violet-600"
+                    />
+                  )}
                   {mode === "product" &&
                     (r.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element

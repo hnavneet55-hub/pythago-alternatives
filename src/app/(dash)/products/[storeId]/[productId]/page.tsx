@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { FilterBar } from "@/components/filter-bar";
+import { ProductStatusButtons } from "@/components/product-status-buttons";
 import { MetricsTable } from "@/components/metrics-table";
 import { SummaryCards } from "@/components/summary-cards";
 import { derive, getCountries, getStoreSummaries, hrefWith, parseParams, resolveScope, sortRows } from "@/lib/dashboard";
@@ -71,6 +72,12 @@ async function Product({ params, searchParams }: PageProps<"/products/[storeId]/
           Open in Shopify ↗
         </a>
       </div>
+
+      {product && (
+        <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xs">
+          <ProductStatusButtons storeId={store.id} productId={productId} status={product.status} />
+        </section>
+      )}
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
         <FilterBar countries={countries} tags={[]} showProductFilters={false} />

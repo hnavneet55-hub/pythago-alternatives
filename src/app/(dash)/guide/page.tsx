@@ -8,7 +8,7 @@ import { appOrigin } from "@/lib/origin";
 
 export const metadata = { title: "Setup guide · AdProfit" };
 
-const SCOPES = "read_products,read_orders,read_all_orders,read_inventory";
+const SCOPES = "read_products,write_products,read_orders,read_all_orders,read_inventory";
 
 // ---------------------------------------------------------------- building blocks
 
@@ -203,7 +203,7 @@ export default function GuidePage() {
               <strong>Webhooks API version:</strong> leave the default (newest).
             </li>
             <li>
-              <strong>Scopes:</strong> add exactly these four:
+              <strong>Scopes:</strong> add exactly these five:
               <div className="mt-2">
                 <CopyLine value={SCOPES} />
               </div>
@@ -220,9 +220,13 @@ export default function GuidePage() {
                 <span>
                   <Code>read_inventory</Code>: “Cost per item” for profit
                 </span>
+                <span>
+                  <Code>write_products</Code>: change a product&apos;s status (active, draft, archived, unlisted)
+                </span>
               </div>
               <p className="mt-2 text-[13px] text-slate-600">
-                All four are <strong>read-only</strong>. AdProfit can&apos;t change anything in your store.
+                The only thing AdProfit changes in your store is a product&apos;s <strong>status</strong>, and only when someone on your team
+                clicks <em>Apply</em> and confirms. Everything else is read-only.
               </p>
             </li>
             <li>
@@ -620,10 +624,10 @@ export default function GuidePage() {
             </p>
           </Problem>
           <Problem q="“Shopify denied access (403)” or a message about missing scopes">
-            <p>The released app version is missing one of the four scopes, or the store hasn&apos;t approved them yet.</p>
+            <p>The released app version is missing one of the five scopes, or the store hasn&apos;t approved them yet.</p>
             <ol className="list-decimal space-y-1 pl-5">
               <li>
-                In the Dev Dashboard, create a new version with all four scopes (<a className="text-violet-700 hover:underline" href="#part-1">step 1.3</a>) and release it.
+                In the Dev Dashboard, create a new version with all five scopes (<a className="text-violet-700 hover:underline" href="#part-1">step 1.3</a>) and release it.
               </li>
               <li>
                 Scope changes aren&apos;t applied to installed stores automatically. In each store&apos;s admin, go to{" "}
@@ -634,9 +638,22 @@ export default function GuidePage() {
               </li>
             </ol>
           </Problem>
+          <Problem q="Changing a product's status fails with “add the write_products scope”">
+            <p>Stores connected before status changes existed don&apos;t have this permission yet.</p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>
+                In the Dev Dashboard, open <Path>Apps → AdProfit → Versions</Path>, create a new version with all five scopes (step 1.3) and{" "}
+                <Path>Release</Path> it.
+              </li>
+              <li>
+                In each store&apos;s admin, go to <Path>Settings → Apps → AdProfit</Path> and approve the updated permissions.
+              </li>
+              <li>Try the status change again. No re-sync is needed.</li>
+            </ol>
+          </Problem>
           <Problem q="Only the last 60 days of orders show up">
             <p>
-              The <Code>read_all_orders</Code> scope is missing. Add it as described in the previous item. The first sync covers 60 days by
+              The <Code>read_all_orders</Code> scope is missing. Add it the same way as described for missing scopes above. The first sync covers 60 days by
               design; older history needs this scope plus a change to the setting <Code>SHOPIFY_INITIAL_SYNC_DAYS</Code> (ask the person who
               manages the app).
             </p>
