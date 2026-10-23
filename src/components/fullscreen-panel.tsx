@@ -57,7 +57,13 @@ export function FullscreenPanel({ toolbar, children }: { toolbar: React.ReactNod
           {full ? "Exit full screen" : "Full screen"}
         </button>
       </div>
-      <div className={full ? "min-h-0 flex-1 [&>div]:max-h-none [&>div]:h-full" : ""}>{children}</div>
+      <div
+        className={
+          full ? "flex min-h-0 flex-1 flex-col [&>div:first-child]:max-h-none [&>div:first-child]:min-h-0 [&>div:first-child]:flex-1" : ""
+        }
+      >
+        {children}
+      </div>
     </div>
   );
 }

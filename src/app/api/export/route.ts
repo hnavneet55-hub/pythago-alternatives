@@ -1,12 +1,16 @@
 import { loadDashboard } from "@/lib/dashboard";
+import { DECISION_LABEL } from "@/lib/decisions";
 
 const COLUMNS = [
   ["store_name", "Store"], ["product_id", "Product ID"], ["title", "Product"], ["status", "Status"],
-  ["variant_count", "Variants"], ["price", "Price"], ["cost", "Ad spend"], ["revenue", "Shopify revenue"],
+  ["variant_count", "Variants"], ["decision_label", "Decision"], ["review", "For human review"],
+  ["target_cpa", "Target CPA"], ["threshold", "Archive threshold CPA"], ["multiplier", "Threshold multiplier"],
+  ["tier", "Price vs AOV"], ["net_roas", "Net ROAS"], ["cogs_pct", "COGS %"], ["break_even_roas", "Break-even ROAS"],
+  ["price", "Price"], ["cost", "Ad spend"], ["revenue", "Shopify revenue"],
   ["roas", "ROAS"], ["profit", "Net profit"], ["conversions", "Google conversions"],
-  ["g_conv_value", "Google conversion value"], ["qty", "Units sold"], ["refund_qty", "Units refunded"],
+  ["g_conv_value", "Google conversion value"], ["orders", "Shopify orders"], ["qty", "Units sold"], ["refund_qty", "Units refunded"],
   ["refunds", "Refunds"], ["cogs", "COGS"], ["clicks", "Clicks"], ["impressions", "Impressions"], ["ctr", "CTR"],
-  ["cpc", "CPC"], ["cpa", "CPA"], ["roas7", "ROAS 7D"], ["cost7", "Spend 7D"], ["rev7", "Revenue 7D"],
+  ["cpc", "CPC"], ["cpa", "CPA (spend ÷ orders)"], ["roas7", "ROAS 7D"], ["cost7", "Spend 7D"], ["rev7", "Revenue 7D"],
   ["roas14", "ROAS 14D"], ["cost14", "Spend 14D"], ["rev14", "Revenue 14D"], ["roas30", "ROAS 30D"],
   ["cost30", "Spend 30D"], ["rev30", "Revenue 30D"], ["margin", "Margin per unit"], ["tags", "Tags"],
 ] as const;
@@ -23,7 +27,17 @@ export async function GET(request: Request) {
   const { params, rows, scope } = await loadDashboard(sp);
   const lines = [
     COLUMNS.map(([, label]) => label).join(","),
-    ...rows.map((r) => COLUMNS.map(([key]) => cell((r as Record<string, unknown>)[key])).join(",")),
+    ...rows.map((r) => {
+      const extra: Record<string, unknown> = {
+        decision_label: r.d?.decision ? DECISION_LABEL[r.d.decision] : null,
+        review: r.d?.review.join(" | ") || null,
+        multiplier: r.d?.multiplier,
+        tier: r.d?.tier,
+        break_even_roas: r.d?.breakEvenRoas,
+      };
+      const values = { ...r, ...extra } as Record<string, unknown>;
+      return COLUMNS.map(([key]) => cell(values[key])).join(",");
+    }),
   ];
   return new Response(lines.join("\n"), {
     headers: {

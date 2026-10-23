@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BULK_FORM_ID, SelectAllCheckbox } from "@/components/bulk-status-bar";
 import type { DashboardRow } from "@/lib/dashboard";
 import { int, money, pct, ratio, roasTone } from "@/lib/format";
+import { DECISION_LABEL, type Decision } from "@/lib/decisions";
 
 type Mode = "product" | "variant";
 
@@ -49,7 +50,8 @@ const COLUMNS: Column[] = [
   { key: "clicks", label: "Clicks", render: (r) => <span className="text-violet-700">{int(r.clicks)}</span> },
   { key: "ctr", label: "CTR", render: (r) => <span className="text-emerald-700">{pct(r.ctr)}</span> },
   { key: "cpc", label: "CPC", render: (r, c) => money(r.cpc, c) },
-  { key: "cpa", label: "CPA", title: "Ad spend ÷ Google Ads conversions", render: (r, c) => money(r.cpa, c) },
+  { key: "orders", label: "Orders", title: "Shopify orders containing the product", render: (r) => int(r.orders) },
+  { key: "cpa", label: "CPA", title: "Ad spend ÷ Shopify orders", render: (r, c) => money(r.cpa, c) },
   ...(["7", "14", "30"] as const).flatMap((n): Column[] => [
     { key: `roas${n}`, label: "ROAS", group: `${n}D` as Column["group"], render: (r) => ratio(r[`roas${n}`]), className: (r) => roasTone(r[`roas${n}`]) },
     { key: `cost${n}`, label: "Spend", group: `${n}D` as Column["group"], render: (r, c) => money(r[`cost${n}`], c) },
@@ -57,6 +59,76 @@ const COLUMNS: Column[] = [
     { key: `imp${n}`, label: "Impr.", group: `${n}D` as Column["group"], render: (r) => int(r[`imp${n}`]) },
   ]),
   { key: "margin", label: "Margin / unit", title: "Price − cost per item", render: (r, c) => money(r.margin, c) },
+];
+
+const DECISION_TONE: Record<Decision, string> = {
+  ARCHIVE: "bg-red-100 text-red-800 ring-red-200",
+  IMPROVE: "bg-amber-100 text-amber-800 ring-amber-200",
+  KEEP: "bg-emerald-100 text-emerald-800 ring-emerald-200",
+  TOO_EARLY: "bg-slate-100 text-slate-600 ring-slate-200",
+};
+const TIER_LABEL = { below: "below AOV", around: "≈ AOV", above: "above AOV" } as const;
+
+// Archive / improve framework columns (product rows only).
+const DECISION_COLUMNS: Column[] = [
+  {
+    key: "decision", label: "Decision", title: "Archive / improve framework: see Setup guide → Decisions",
+    render: (r) => {
+      const d = r.d;
+      if (!d) return "–";
+      return (
+        <div className="flex items-center justify-end gap-1.5">
+          {d.decision ? (
+            <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ring-1 ${DECISION_TONE[d.decision]}`}>
+              {DECISION_LABEL[d.decision]}
+            </span>
+          ) : (
+            <span className="text-slate-400">–</span>
+          )}
+          {d.review.length > 0 && (
+            <span
+              className="cursor-help rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800 ring-1 ring-violet-200"
+              title={`For human review:\n• ${d.review.join("\n• ")}`}
+            >
+              Review
+            </span>
+          )}
+        </div>
+      );
+    },
+  },
+  { key: "target_cpa", label: "Target CPA", title: "Selling price ÷ target ROAS", render: (r, c) => money(r.target_cpa, c) },
+  {
+    key: "threshold", label: "Archive at", title: "Archive threshold CPA = target CPA × multiplier (1.5× / 1.75× / 2× by price vs store AOV)",
+    render: (r, c) =>
+      r.d?.threshold == null ? (
+        "–"
+      ) : (
+        <>
+          {money(r.d.threshold, c)}
+          <div className="text-[10px] text-slate-500">
+            {r.d.multiplier}× · {TIER_LABEL[r.d.tier!]}
+            {r.d.remaining != null && ` · ${money(r.d.remaining, c, 0)} left`}
+          </div>
+        </>
+      ),
+  },
+  {
+    key: "net_roas", label: "Net ROAS", title: "(Revenue − refunds) ÷ ad spend",
+    render: (r) => ratio(r.net_roas), className: (r) => roasTone(r.net_roas),
+  },
+  {
+    key: "cogs_pct", label: "COGS %", title: "Actual cost of goods as % of revenue (niche target and break-even ROAS below)",
+    render: (r) =>
+      r.d?.cogsPct == null ? (
+        "–"
+      ) : (
+        <>
+          {r.d.cogsPct.toFixed(0)}%
+          {r.d.breakEvenRoas != null && <div className="text-[10px] text-slate-500">BE ROAS {r.d.breakEvenRoas.toFixed(2)}</div>}
+        </>
+      ),
+  },
 ];
 
 const STATUS_TONE: Record<string, string> = {
@@ -107,7 +179,13 @@ export function MetricsTable({
         <thead className="sticky top-0 z-20 bg-white text-[11px] uppercase tracking-wide text-slate-500">
           <tr>
             <th className="sticky left-0 z-30 bg-white" colSpan={1} />
-            <th colSpan={(showStore ? 1 : 0) + (mode === "product" ? 2 : 1) + 14} />
+            <th colSpan={(showStore ? 1 : 0) + (mode === "product" ? 2 : 1)} />
+            {mode === "product" && (
+              <th colSpan={DECISION_COLUMNS.length} className="bg-violet-50/40 px-3 pt-2 text-center font-semibold text-violet-800">
+                Archive / improve
+              </th>
+            )}
+            <th colSpan={15} />
             {(["7D", "14D", "30D"] as const).map((g) => (
               <th key={g} colSpan={4} className="border-l border-slate-200 px-3 pt-2 text-center font-semibold text-slate-700">
                 Last {g.replace("D", " days")}
@@ -131,6 +209,7 @@ export function MetricsTable({
             {showStore && head("store_name", "Store", undefined, "text-left")}
             {mode === "product" && head("status", "Status", undefined, "text-left")}
             {mode === "product" ? head("variant_count", "Variants") : head("unit_cost", "Unit cost")}
+            {mode === "product" && DECISION_COLUMNS.map((c) => head(c.key, c.label, c.title, "bg-violet-50/40"))}
             {COLUMNS.map((c) => head(c.key, c.label, c.title, c.group && c.key.startsWith("roas") ? "border-l border-slate-200" : ""))}
           </tr>
         </thead>
@@ -201,6 +280,12 @@ export function MetricsTable({
                   money(r.unit_cost, currency)
                 )}
               </td>
+              {mode === "product" &&
+                DECISION_COLUMNS.map((c) => (
+                  <td key={c.key} className={`whitespace-nowrap px-3 py-2 ${c.className?.(r) ?? ""}`}>
+                    {c.render(r, currency)}
+                  </td>
+                ))}
               {COLUMNS.map((c) => (
                 <td
                   key={c.key}

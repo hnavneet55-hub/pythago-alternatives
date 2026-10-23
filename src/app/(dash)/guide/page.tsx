@@ -580,6 +580,62 @@ export default function GuidePage() {
         </Step>
       </Part>
 
+      {/* ------------------------------------------------------------ decisions */}
+      <section id="decisions" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
+        <h2 className="mb-1 text-lg font-semibold">How the Archive / Improve decisions work</h2>
+        <p className="mb-4 text-sm text-slate-600">
+          The dashboard applies the team&apos;s product archive / improve framework to every product, for the selected stores and dates.
+          Set each store&apos;s niche and target ROAS in{" "}
+          <Link href="/settings#targets" className="font-medium text-violet-700 hover:underline">
+            Stores &amp; setup → Archive / improve targets
+          </Link>
+          .
+        </p>
+        <div className="grid gap-4 text-sm text-slate-700 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <div>
+              <strong>Target CPA</strong> = selling price ÷ target ROAS (2.5 → 40% of price)
+            </div>
+            <div>
+              <strong>CPA</strong> = ad spend ÷ Shopify orders
+            </div>
+            <div>
+              <strong>Net ROAS</strong> = (revenue − refunds) ÷ ad spend
+            </div>
+            <div>
+              <strong>Archive threshold</strong> = target CPA × 1.5 (price &gt; 20% below the store&apos;s AOV), 1.75 (within ±20%) or 2 (&gt; 20%
+              above)
+            </div>
+            <div>
+              <strong>Break-even ROAS</strong> = 1 ÷ (1 − niche target COGS %)
+            </div>
+          </div>
+          <ul className="space-y-1.5">
+            <li>
+              <strong className="text-red-700">Archive</strong>: has sales and CPA ≥ threshold, or no sales and spend ≥ threshold
+            </li>
+            <li>
+              <strong className="text-amber-700">Improve</strong>: has sales, CPA between target CPA and the threshold
+            </li>
+            <li>
+              <strong className="text-emerald-700">Keep / scale</strong>: CPA ≤ target CPA (ROAS ≥ target)
+            </li>
+            <li>
+              <strong className="text-slate-700">Too early</strong>: no sales yet, spend under the threshold (shows how much is left)
+            </li>
+            <li>
+              <strong className="text-violet-700">Review</strong>: a judgment call for a person: within 5% of the threshold, below break-even
+              but not archivable, COGS well above the niche target, refunds wiping out revenue, or a missing price or cost. Hover the badge to see
+              why.
+            </li>
+          </ul>
+        </div>
+        <p className="mt-4 text-sm text-slate-600">
+          Typical flow: click <strong>Archive</strong> in the decision boxes, check the <em>Review</em> ones by hand, tick the products, and set
+          them to <em>Archived</em> with the status bar.
+        </p>
+      </section>
+
       {/* ------------------------------------------------------------ troubleshooting */}
       <section id="help" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white shadow-xs">
         <header className="border-b border-slate-100 px-6 py-4">

@@ -4,7 +4,7 @@ import { sql } from "@/lib/db";
 import { adsScript } from "@/lib/ads-script";
 import { timeAgo } from "@/lib/format";
 import { appOrigin } from "@/lib/origin";
-import { AddStoreForm, CogsForm, CopyBlock, ImportCogsButton, StoreActions } from "./forms";
+import { AddStoreForm, CogsForm, CopyBlock, ImportCogsButton, StoreActions, TargetsForm } from "./forms";
 import { profitSheetConfigured } from "@/lib/profit-sheet";
 
 export const metadata = { title: "Stores & setup · AdProfit" };
@@ -30,6 +30,7 @@ export default function SettingsPage() {
       </Link>
       <Suspense fallback={<div className="text-slate-500">Loading stores…</div>}>
         <StoreList />
+        <TargetSettings />
         <CogsSettings />
       </Suspense>
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
@@ -231,6 +232,35 @@ async function CogsSettings() {
       <p className="mt-3 text-xs text-slate-500">
         Example: a default of 35% counts a $50 sale as $17.50 cost of goods. Clear the field and save to remove it.
       </p>
+    </section>
+  );
+}
+
+async function TargetSettings() {
+  const stores = await sql<{ id: number; name: string; niche: string | null; target_cogs_pct: string | null; target_roas: string }[]>`
+    select id, name, niche, target_cogs_pct::text, target_roas::text from stores order by name`;
+  if (stores.length === 0) return null;
+  return (
+    <section id="targets" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
+      <h2 className="mb-1 font-semibold">Archive / improve targets</h2>
+      <p className="mb-4 text-sm text-slate-600">
+        Used by the <strong>Decision</strong> columns on the dashboard. Target CPA = price ÷ target ROAS; the archive threshold is 1.5×, 1.75×
+        or 2× target CPA depending on price vs the store&apos;s AOV. The niche&apos;s target COGS sets the break-even ROAS and the
+        “COGS above target” review check.
+      </p>
+      <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        {stores.map((s) => (
+          <div key={s.id} className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+            <div className="min-w-40 font-medium">{s.name}</div>
+            <TargetsForm
+              storeId={s.id}
+              niche={s.niche ?? ""}
+              cogs={s.target_cogs_pct === null ? "" : String(Number(s.target_cogs_pct))}
+              roas={String(Number(s.target_roas))}
+            />
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

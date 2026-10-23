@@ -69,7 +69,7 @@ export async function GET(request: Request) {
       [
         ...(multi ? [store?.name] : []),
         r.title, r.product_id, r.status, r.variant_count, r.tags.join(", "), r.published_at,
-        money(b30.cost), b30.imp, b30.clicks, b30.ctr, ratio(b30.cost, b30.clicks), ratio(b30.cost, r.conversions),
+        money(b30.cost), b30.imp, b30.clicks, b30.ctr, ratio(b30.cost, b30.clicks), ratio(b30.cost, r.qty), // CPA = spend ÷ units, as in Pythago
         r.conversions.toFixed(2), money(b30.cv), r.qty, money(b30.rev), money(b30.refunds), ratio(b30.cv, b30.cost),
         ...rest,
         store?.ads_currency ?? "", store?.shop_currency ?? "",

@@ -103,3 +103,16 @@ export async function importCogsNow(): Promise<ActionState> {
   if (errors.length) return { error: `${errors.map((r) => `${r.store}: ${"error" in r ? r.error : ""}`).join("; ")}${summary ? ` (ok: ${summary})` : ""}` };
   return { ok: summary ? `Imported. ${summary}` : "No matching stores in Profit-Sheet" };
 }
+
+export async function setTargets(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const storeId = Number(form.get("storeId"));
+  const niche = String(form.get("niche") ?? "");
+  const cogsRaw = String(form.get("cogs") ?? "").trim().replace(",", ".").replace("%", "");
+  const roas = Number(String(form.get("roas") ?? "2.5").replace(",", "."));
+  if (!Number.isFinite(roas) || roas <= 0 || roas > 20) return { error: "Target ROAS must be between 0 and 20" };
+  const cogs = cogsRaw === "" ? null : Number(cogsRaw);
+  if (cogs !== null && (!Number.isFinite(cogs) || cogs < 0 || cogs >= 100)) return { error: "Target COGS must be 0–99%" };
+  await sql`update stores set niche = ${niche || null}, target_cogs_pct = ${cogs}, target_roas = ${roas} where id = ${storeId}`;
+  refresh();
+  return { ok: "Saved" };
+}

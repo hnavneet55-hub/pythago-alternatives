@@ -6,10 +6,10 @@ import { SummaryCards } from "@/components/summary-cards";
 import { StoreSwitcher } from "@/components/store-switcher";
 import { BulkStatusBar } from "@/components/bulk-status-bar";
 import { FullscreenPanel } from "@/components/fullscreen-panel";
+import { DecisionStrip } from "@/components/decision-strip";
+import { PageSize } from "@/components/page-size";
 import { getCountries, hrefWith, loadDashboard, storeCurrency, type SearchParams } from "@/lib/dashboard";
 import { timeAgo } from "@/lib/format";
-
-const PAGE_SIZE = 50;
 
 export default function DashboardPage({ searchParams }: PageProps<"/">) {
   return (
@@ -21,7 +21,7 @@ export default function DashboardPage({ searchParams }: PageProps<"/">) {
 
 async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const { params, stores, scope, rows, totals, allTags, lastSync } = await loadDashboard(sp);
+  const { params, stores, scope, rows, totals, allTags, lastSync, decisionSummary } = await loadDashboard(sp);
   const countries = await getCountries(scope.storeIds);
 
   if (stores.length === 0) {
@@ -41,9 +41,28 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
     );
   }
 
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const perPage = params.per;
+  const pages = Math.max(1, Math.ceil(rows.length / perPage));
   const page = Math.min(params.page, pages);
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageRows = rows.slice((page - 1) * perPage, page * perPage);
+  const needsNiche = stores.some((s) => scope.storeIds.includes(s.id) && s.target_cogs_pct === null);
+  const pager = pages > 1 && (
+    <div className="flex items-center gap-2 text-sm">
+      {page > 1 && (
+        <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page - 1) })}>
+          ← Prev
+        </Link>
+      )}
+      <span className="text-slate-500">
+        Page {page} of {pages}
+      </span>
+      {page < pages && (
+        <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page + 1) })}>
+          Next →
+        </Link>
+      )}
+    </div>
+  );
   const exportHref = hrefWith("/api/export", sp, { page: null });
 
   return (
@@ -107,6 +126,8 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
 
       <SummaryCards t={totals} currency={scope.currency} />
 
+      <DecisionStrip summary={decisionSummary} currency={scope.currency} needsNiche={needsNiche} />
+
       <FullscreenPanel
         toolbar={
           <>
@@ -117,23 +138,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
               </p>
             </div>
             <BulkStatusBar />
-            {pages > 1 && (
-              <div className="flex items-center gap-2 text-sm">
-                {page > 1 && (
-                  <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page - 1) })}>
-                    ← Prev
-                  </Link>
-                )}
-                <span className="text-slate-500">
-                  Page {page} of {pages}
-                </span>
-                {page < pages && (
-                  <Link className="rounded-md border px-2.5 py-1 hover:bg-slate-50" href={hrefWith("/", sp, { page: String(page + 1) })}>
-                    Next →
-                  </Link>
-                )}
-              </div>
-            )}
+            {pager}
           </>
         }
       >
@@ -148,6 +153,13 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
           selectable
           productHref={(r) => hrefWith(`/products/${r.store_id}/${r.product_id}`, sp, { page: null, q: null, sort: null, dir: null, status: null, tag: null })}
         />
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+          <PageSize per={perPage} />
+          <span className="text-sm text-slate-500">
+            {rows.length ? `${(page - 1) * perPage + 1}–${Math.min(page * perPage, rows.length)} of ${rows.length}` : "0 products"}
+          </span>
+          {pager || <span />}
+        </div>
       </FullscreenPanel>
     </div>
   );

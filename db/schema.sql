@@ -139,3 +139,8 @@ alter table stores add column if not exists cogs_imported_at timestamptz;
 alter table stores add column if not exists cogs_import_error text;
 
 alter table products add column if not exists published_at timestamptz;   -- Shopify publishedAt
+
+-- Archive / improve framework settings per store.
+alter table stores add column if not exists target_roas numeric not null default 2.5;
+alter table stores add column if not exists niche text;              -- preset name, e.g. 'Fashion'
+alter table stores add column if not exists target_cogs_pct numeric; -- niche target COGS %, e.g. 33

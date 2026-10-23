@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { addStore, importCogsNow, removeStore, rotateIngestKey, setDefaultCogs, syncStore, type ActionState } from "./actions";
+import { addStore, importCogsNow, removeStore, rotateIngestKey, setDefaultCogs, setTargets, syncStore, type ActionState } from "./actions";
+import { NICHES } from "@/lib/decisions";
 
 const input =
   "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200";
@@ -156,5 +157,54 @@ export function ImportCogsButton() {
       </button>
       <Message state={state} />
     </div>
+  );
+}
+
+export function TargetsForm({ storeId, niche, cogs, roas }: { storeId: number; niche: string; cogs: string; roas: string }) {
+  const [state, action, pending] = useActionState(setTargets, null);
+  const [nicheValue, setNiche] = useState(niche);
+  const [cogsValue, setCogs] = useState(cogs);
+  const preset = NICHES.find((n) => n.name === nicheValue);
+  const field = "h-9 rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200";
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2 text-sm">
+      <input type="hidden" name="storeId" value={storeId} />
+      <select
+        name="niche"
+        value={nicheValue}
+        onChange={(e) => {
+          setNiche(e.target.value);
+          const p = NICHES.find((n) => n.name === e.target.value);
+          if (p) setCogs(String(p.cogs));
+        }}
+        className={field}
+        aria-label="Niche"
+      >
+        <option value="">Niche…</option>
+        {NICHES.map((n) => (
+          <option key={n.name} value={n.name}>
+            {n.name} ({n.range ? `${n.range[0]}–${n.range[1]}` : n.cogs}%)
+          </option>
+        ))}
+        <option value="Custom">Custom</option>
+      </select>
+      <label className="flex items-center gap-1.5 text-slate-600">
+        Target COGS
+        <input name="cogs" value={cogsValue} onChange={(e) => setCogs(e.target.value)} inputMode="decimal" className={`${field} w-20`} placeholder="33" />%
+      </label>
+      <label className="flex items-center gap-1.5 text-slate-600">
+        Target ROAS
+        <input name="roas" defaultValue={roas} inputMode="decimal" className={`${field} w-20`} />
+      </label>
+      <button disabled={pending} className="h-9 rounded-md bg-violet-600 px-3 font-medium text-white hover:bg-violet-700 disabled:opacity-60">
+        {pending ? "Saving…" : "Save"}
+      </button>
+      {preset?.range && (
+        <span className="text-xs text-amber-700">
+          Range {preset.range[0]}–{preset.range[1]}%: adjust to the product mix if needed
+        </span>
+      )}
+      <Message state={state} />
+    </form>
   );
 }

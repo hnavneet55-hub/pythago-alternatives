@@ -29,6 +29,7 @@ export type ReportRow = {
   conversions: number;
   g_conv_value: number;
   qty: number;
+  orders: number; // distinct Shopify orders containing the product
   revenue: number;
   refund_qty: number;
   refunds: number;
@@ -46,7 +47,7 @@ export type ReportRow = {
 };
 
 const NUMERIC_KEYS = [
-  "price", "unit_cost", "cost", "impressions", "clicks", "conversions", "g_conv_value", "qty", "revenue",
+  "price", "unit_cost", "cost", "impressions", "clicks", "conversions", "g_conv_value", "qty", "orders", "revenue",
   "refund_qty", "refunds", "cogs", "rev_no_cogs", "cost7", "rev7", "imp7", "cost14", "rev14", "imp14", "cost30", "rev30", "imp30",
 ] as const;
 
@@ -110,6 +111,7 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
     sales as (
       select o.store_id, ${variantMode ? sql`o.variant_id` : sql`o.product_id`} as key_id,
         sum(o.quantity)                       filter (where o.day >= b.d_from) as qty,
+        count(distinct o.order_id)            filter (where o.day >= b.d_from) as orders,
         sum(x.rev)                            filter (where o.day >= b.d_from) as revenue,
         sum(x.cogs)                           filter (where o.day >= b.d_from) as cogs,
         sum(x.rev)                            filter (where o.day >= b.d_from and x.cogs is null) as rev_no_cogs,
@@ -177,7 +179,7 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       ) * fx(s.shop_currency, ${cur}, b.d_to) as unit_cost,
       coalesce(a.cost, 0) as cost, coalesce(a.impressions, 0) as impressions, coalesce(a.clicks, 0) as clicks,
       coalesce(a.conversions, 0) as conversions, coalesce(a.g_conv_value, 0) as g_conv_value,
-      coalesce(sa.qty, 0) as qty, coalesce(sa.revenue, 0) as revenue, coalesce(sa.cogs, 0) as cogs,
+      coalesce(sa.qty, 0) as qty, coalesce(sa.orders, 0) as orders, coalesce(sa.revenue, 0) as revenue, coalesce(sa.cogs, 0) as cogs,
       coalesce(sa.rev_no_cogs, 0) as rev_no_cogs,
       coalesce(rf.refund_qty, 0) as refund_qty, coalesce(rf.refunds, 0) as refunds,
       coalesce(a.cost7, 0) as cost7, coalesce(sa.rev7, 0) as rev7, coalesce(a.imp7, 0) as imp7,

@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { sql } from "./db";
 import { getReport, totals, type ReportRow } from "./report";
+import { decide, type DecisionResult, type StoreTargets } from "./decisions";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -13,10 +14,19 @@ export type StoreSummary = {
   ads_synced_at: Date | null;
   orders_synced_at: Date | null;
   last_sync_error: string | null;
+  target_roas: string;
+  target_cogs_pct: string | null;
+  niche: string | null;
 };
 
 export type DashboardRow = ReportRow & {
   store_name: string;
+  d: DecisionResult | null; // archive / improve decision (product rows only)
+  decision: string | null; // for sorting
+  net_roas: number | null;
+  target_cpa: number | null;
+  threshold: number | null;
+  cogs_pct: number | null;
   ctr: number | null;
   cpc: number | null;
   cpa: number | null;
@@ -50,16 +60,19 @@ export function parseParams(sp: SearchParams) {
     status: one(sp.status).toUpperCase() || "",
     tag: one(sp.tag) || "",
     q: one(sp.q).trim(),
+    decision: one(sp.decision).toUpperCase(),
     sort: one(sp.sort) || "cost",
     dir: one(sp.dir) === "asc" ? ("asc" as const) : ("desc" as const),
     page: Math.max(1, Number(one(sp.page)) || 1),
+    per: [25, 50, 75, 100].includes(Number(one(sp.per))) ? Number(one(sp.per)) : 50,
   };
 }
 export type Params = ReturnType<typeof parseParams>;
 
 export async function getStoreSummaries() {
   return sql<StoreSummary[]>`
-    select id, name, shop_domain, ads_currency, shop_currency, ads_synced_at, orders_synced_at, last_sync_error
+    select id, name, shop_domain, ads_currency, shop_currency, ads_synced_at, orders_synced_at, last_sync_error,
+           target_roas::text, target_cogs_pct::text, niche
     from stores order by name`;
 }
 
@@ -86,13 +99,25 @@ export function resolveScope(stores: StoreSummary[], storeIds: number[], cur = "
   };
 }
 
-export function derive(r: ReportRow, storeName: string): DashboardRow {
+export function derive(r: ReportRow, storeName: string, targets: StoreTargets | null = null): DashboardRow {
+  const d = targets
+    ? decide(
+        { price: r.price, cost: r.cost, orders: r.orders, revenue: r.revenue, refunds: r.refunds, cogs: r.cogs, cogsKnown: r.rev_no_cogs <= 0.005 },
+        targets,
+      )
+    : null;
   return {
     ...r,
     store_name: storeName,
+    d,
+    decision: d?.decision ?? null,
+    net_roas: div(r.revenue - r.refunds, r.cost),
+    target_cpa: d?.targetCpa ?? null,
+    threshold: d?.threshold ?? null,
+    cogs_pct: d?.cogsPct ?? null,
     ctr: div(r.clicks, r.impressions),
     cpc: div(r.cost, r.clicks),
-    cpa: div(r.cost, r.conversions),
+    cpa: div(r.cost, r.orders), // ad spend ÷ Shopify orders
     roas: div(r.revenue, r.cost),
     roas7: div(r.rev7, r.cost7),
     roas14: div(r.rev14, r.cost14),
@@ -131,8 +156,30 @@ export async function loadDashboard(sp: SearchParams) {
       to: params.to,
       country: params.country,
     });
-    rows = report.map((r) => derive(r, names.get(r.store_id) ?? ""));
+    // Store AOV for the price tiers: revenue ÷ distinct orders over the same period and filters.
+    const orderCounts = await sql<{ store_id: number; orders: number }[]>`
+      select store_id, count(distinct order_id)::int as orders from order_lines
+      where store_id = any(${scope.storeIds}::int[]) and day between ${params.from} and ${params.to} and not cancelled
+        and (${params.country}::text is null or country = ${params.country})
+      group by store_id`;
+    const revenueByStore = new Map<number, number>();
+    for (const r of report) revenueByStore.set(r.store_id, (revenueByStore.get(r.store_id) ?? 0) + r.revenue);
+    const targets = new Map(
+      stores.map((s) => {
+        const orders = orderCounts.find((o) => o.store_id === s.id)?.orders ?? 0;
+        return [
+          s.id,
+          {
+            targetRoas: Number(s.target_roas) || 2.5,
+            targetCogsPct: s.target_cogs_pct === null ? null : Number(s.target_cogs_pct),
+            aov: orders ? (revenueByStore.get(s.id) ?? 0) / orders : null,
+          } satisfies StoreTargets,
+        ];
+      }),
+    );
+    rows = report.map((r) => derive(r, names.get(r.store_id) ?? "", targets.get(r.store_id) ?? null));
   }
+
 
   if (params.status) rows = rows.filter((r) => r.status === params.status);
   if (params.tag) rows = rows.filter((r) => r.tags.includes(params.tag));
@@ -150,6 +197,11 @@ export async function loadDashboard(sp: SearchParams) {
     );
   }
 
+  // Decision counts after the other filters, before the decision filter, for the summary strip.
+  const decisionSummary = summarizeDecisions(rows);
+  if (params.decision === "REVIEW") rows = rows.filter((r) => (r.d?.review.length ?? 0) > 0);
+  else if (params.decision) rows = rows.filter((r) => r.decision === params.decision);
+
   sortRows(rows, params.sort, params.dir);
 
   const allTags = [...new Set(rows.flatMap((r) => r.tags))].sort();
@@ -159,7 +211,7 @@ export async function loadDashboard(sp: SearchParams) {
     .filter((d): d is Date => d !== null)
     .sort((a, b) => a.getTime() - b.getTime())[0];
 
-  return { params, stores, scope, rows, totals: totals(rows), allTags, lastSync: lastSync ?? null };
+  return { params, stores, scope, rows, totals: totals(rows), allTags, lastSync: lastSync ?? null, decisionSummary };
 }
 
 export async function getCountries(storeIds: number[]) {
@@ -184,4 +236,18 @@ export function hrefWith(path: string, sp: SearchParams, changes: Record<string,
   }
   const qs = next.toString();
   return qs ? `${path}?${qs}` : path;
+}
+
+export function summarizeDecisions(rows: DashboardRow[]) {
+  const by = (pred: (r: DashboardRow) => boolean) => {
+    const xs = rows.filter(pred);
+    return { count: xs.length, spend: xs.reduce((s, r) => s + r.cost, 0) };
+  };
+  return {
+    ARCHIVE: by((r) => r.decision === "ARCHIVE"),
+    IMPROVE: by((r) => r.decision === "IMPROVE"),
+    KEEP: by((r) => r.decision === "KEEP"),
+    TOO_EARLY: by((r) => r.decision === "TOO_EARLY"),
+    REVIEW: by((r) => (r.d?.review.length ?? 0) > 0),
+  };
 }
