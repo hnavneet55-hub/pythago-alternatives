@@ -8,3 +8,10 @@
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+@keyframes quicklook {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}

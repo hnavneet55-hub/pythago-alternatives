@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { CopyId } from "@/components/copy-id";
+import { ImagePreview } from "@/components/image-preview";
 import { FilterBar } from "@/components/filter-bar";
 import { ProductStatusButtons } from "@/components/product-status-buttons";
 import { MetricsTable } from "@/components/metrics-table";
@@ -55,8 +56,7 @@ async function Product({ params, searchParams }: PageProps<"/products/[storeId]/
       </div>
       <div className="flex items-center gap-4">
         {product?.image_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`${product.image_url}${product.image_url.includes("?") ? "&" : "?"}width=160`} alt="" className="h-16 w-16 rounded-lg object-cover ring-1 ring-slate-200" />
+          <ImagePreview url={product.image_url} alt={product.title} thumbWidth={160} className="h-16 w-16 rounded-lg object-cover ring-1 ring-slate-200" />
         )}
         <div>
           <h1 className="text-xl font-semibold">{product?.title ?? `Product ${productId}`}</h1>

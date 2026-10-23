@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BULK_FORM_ID, SelectAllCheckbox } from "@/components/bulk-status-bar";
 import { CopyId } from "@/components/copy-id";
+import { ImagePreview } from "@/components/image-preview";
 import type { DashboardRow } from "@/lib/dashboard";
 import { int, money, pct, ratio, roasTone } from "@/lib/format";
 import { DECISION_LABEL, type Decision } from "@/lib/decisions";
@@ -275,8 +276,7 @@ export function MetricsTable({
                   )}
                   {mode === "product" &&
                     (r.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`${r.image_url}${r.image_url.includes("?") ? "&" : "?"}width=96`} alt="" className="h-11 w-11 shrink-0 rounded-md object-cover ring-1 ring-slate-200" />
+                      <ImagePreview url={r.image_url} alt={r.title} thumbWidth={96} className="h-11 w-11 rounded-md object-cover ring-1 ring-slate-200" />
                     ) : (
                       <div className="h-11 w-11 shrink-0 rounded-md bg-slate-100 ring-1 ring-slate-200" />
                     ))}
