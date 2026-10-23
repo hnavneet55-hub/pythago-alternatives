@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { CopyId } from "@/components/copy-id";
 import { FilterBar } from "@/components/filter-bar";
 import { ProductStatusButtons } from "@/components/product-status-buttons";
 import { MetricsTable } from "@/components/metrics-table";
@@ -60,7 +61,8 @@ async function Product({ params, searchParams }: PageProps<"/products/[storeId]/
         <div>
           <h1 className="text-xl font-semibold">{product?.title ?? `Product ${productId}`}</h1>
           <p className="text-sm text-slate-500">
-            {store.name} · ID {productId} · {product?.status ?? "unknown status"} · per-SKU breakdown in {scope.currency}
+            {store.name} · ID {productId}
+            <CopyId value={productId} /> · {product?.status ?? "unknown status"} · per-SKU breakdown in {scope.currency}
           </p>
         </div>
         <a

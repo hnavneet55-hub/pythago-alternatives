@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BULK_FORM_ID, SelectAllCheckbox } from "@/components/bulk-status-bar";
+import { CopyId } from "@/components/copy-id";
 import type { DashboardRow } from "@/lib/dashboard";
 import { int, money, pct, ratio, roasTone } from "@/lib/format";
 import { DECISION_LABEL, type Decision } from "@/lib/decisions";
@@ -274,7 +275,18 @@ export function MetricsTable({
                       <div className="max-w-64 truncate font-medium">{mode === "product" ? r.title : r.variant_title}</div>
                     )}
                     <div className="text-[11px] text-slate-500">
-                      {mode === "product" ? `ID: ${r.product_id}` : `SKU: ${r.sku ?? "–"} · ID: ${r.key_id}`}
+                      {mode === "product" ? (
+                        <>
+                          ID: {r.product_id}
+                          <CopyId value={r.product_id} />
+                        </>
+                      ) : (
+                        <>
+                          SKU: {r.sku ?? "–"}
+                          {r.sku && <CopyId value={r.sku} label="SKU" />} · ID: {r.key_id}
+                          <CopyId value={r.key_id} label="variant ID" />
+                        </>
+                      )}
                       {mode === "product" && r.tags.length > 0 && <span className="ml-2 text-violet-600">{r.tags.slice(0, 3).join(", ")}</span>}
                     </div>
                   </div>
