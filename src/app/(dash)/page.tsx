@@ -21,7 +21,7 @@ export default function DashboardPage({ searchParams }: PageProps<"/">) {
 
 async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const { params, stores, scope, rows, totals, allTags, lastSync, decisionSummary } = await loadDashboard(sp);
+  const { params, stores, scope, rows, totals, allTags, lastSync, decisionSummary, landingCoverage } = await loadDashboard(sp);
   const countries = await getCountries(scope.storeIds);
 
   if (stores.length === 0) {
@@ -135,6 +135,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
               <h2 className="font-semibold">Product performance</h2>
               <p className="text-sm text-slate-500">
                 Showing {pageRows.length} of {rows.length} products · all SKUs of a product are combined
+                {landingCoverage !== null && ` · halo covers ${Math.round(landingCoverage * 100)}% of orders`}
               </p>
             </div>
             <BulkStatusBar />
@@ -151,6 +152,11 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
           dir={params.dir}
           sortHref={(key, dir) => hrefWith("/", sp, { sort: key, dir, page: null })}
           selectable
+          haloNote={
+            landingCoverage === null
+              ? undefined
+              : `Shopify knows the landing page for ${Math.round(landingCoverage * 100)}% of orders in this period; the rest (no tracking consent, ad blockers, older orders) can't be attributed.`
+          }
           productHref={(r) => hrefWith(`/products/${r.store_id}/${r.product_id}`, sp, { page: null, q: null, sort: null, dir: null, status: null, tag: null })}
         />
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">

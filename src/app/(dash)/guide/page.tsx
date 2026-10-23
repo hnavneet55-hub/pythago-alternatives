@@ -576,6 +576,11 @@ export default function GuidePage() {
             <li>
               All SKUs (variants) of a product are added together. Click the variant count to see each SKU.
             </li>
+            <li>
+              <strong>Halo</strong> = revenue of <em>other</em> products in orders whose customer landed on this product&apos;s page (from
+              Shopify&apos;s customer journey). It&apos;s shown only in the Halo columns; the other products&apos; own numbers don&apos;t change.
+              Orders without a known landing page (no tracking consent, ad blockers) can&apos;t be attributed.
+            </li>
           </ul>
         </Step>
       </Part>

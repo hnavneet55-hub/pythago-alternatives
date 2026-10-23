@@ -44,11 +44,18 @@ export type ReportRow = {
   cost30: number;
   rev30: number;
   imp30: number;
+  // Halo (product rows only): revenue of OTHER products in orders whose customer landed on this product.
+  halo: number;
+  halo_orders: number;
+  halo7: number;
+  halo14: number;
+  halo30: number;
 };
 
 const NUMERIC_KEYS = [
   "price", "unit_cost", "cost", "impressions", "clicks", "conversions", "g_conv_value", "qty", "orders", "revenue",
   "refund_qty", "refunds", "cogs", "rev_no_cogs", "cost7", "rev7", "imp7", "cost14", "rev14", "imp14", "cost30", "rev30", "imp30",
+  "halo", "halo_orders", "halo7", "halo14", "halo30",
 ] as const;
 
 /**
@@ -159,9 +166,33 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
         and (${productId}::bigint is null or rl.product_id = ${productId}::bigint)
       group by 1, 2
     ),
+    halo as (
+      select o.store_id, o.landing_product_id as key_id,
+        sum(r.rev)                  filter (where o.day >= b.d_from)  as halo,
+        count(distinct o.order_id)  filter (where o.day >= b.d_from)  as halo_orders,
+        sum(r.rev)                  filter (where o.day > b.d_to - 7)  as halo7,
+        sum(r.rev)                  filter (where o.day > b.d_to - 14) as halo14,
+        sum(r.rev)                  filter (where o.day > b.d_to - 30) as halo30
+      from order_lines o
+      join rates rt on rt.store_id = o.store_id and rt.day = o.day
+      cross join bounds b
+      cross join lateral (
+        select case when o.presentment_currency = ${cur} then o.revenue_presentment
+                    else o.revenue_shop * rt.shop_rate end as rev
+      ) r
+      where ${variantMode ? sql`false` : sql`true`}
+        and o.store_id = any(${f.storeIds}::int[])
+        and o.day between b.d_min and b.d_to
+        and not o.cancelled
+        and o.landing_product_id is not null
+        and o.product_id is distinct from o.landing_product_id
+        and (${country}::text is null or o.country = ${country})
+        and (${productId}::bigint is null or o.landing_product_id = ${productId}::bigint)
+      group by 1, 2
+    ),
     keys as (
       select store_id, key_id from ads union select store_id, key_id from sales
-      union select store_id, key_id from refunds
+      union select store_id, key_id from refunds union select store_id, key_id from halo
     )
     select
       k.store_id, k.key_id::text as key_id,
@@ -184,13 +215,16 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       coalesce(rf.refund_qty, 0) as refund_qty, coalesce(rf.refunds, 0) as refunds,
       coalesce(a.cost7, 0) as cost7, coalesce(sa.rev7, 0) as rev7, coalesce(a.imp7, 0) as imp7,
       coalesce(a.cost14, 0) as cost14, coalesce(sa.rev14, 0) as rev14, coalesce(a.imp14, 0) as imp14,
-      coalesce(a.cost30, 0) as cost30, coalesce(sa.rev30, 0) as rev30, coalesce(a.imp30, 0) as imp30
+      coalesce(a.cost30, 0) as cost30, coalesce(sa.rev30, 0) as rev30, coalesce(a.imp30, 0) as imp30,
+      coalesce(h.halo, 0) as halo, coalesce(h.halo_orders, 0) as halo_orders,
+      coalesce(h.halo7, 0) as halo7, coalesce(h.halo14, 0) as halo14, coalesce(h.halo30, 0) as halo30
     from keys k
     cross join bounds b
     join stores s on s.id = k.store_id
     left join ads a on a.store_id = k.store_id and a.key_id = k.key_id
     left join sales sa on sa.store_id = k.store_id and sa.key_id = k.key_id
     left join refunds rf on rf.store_id = k.store_id and rf.key_id = k.key_id
+    left join halo h on h.store_id = k.store_id and h.key_id = k.key_id
     ${variantMode ? sql`left join variants v on v.store_id = k.store_id and v.id = k.key_id` : sql``}
     left join products p on p.store_id = k.store_id
       and p.id = ${variantMode ? sql`v.product_id` : sql`k.key_id`}

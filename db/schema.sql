@@ -144,3 +144,11 @@ alter table products add column if not exists published_at timestamptz;   -- Sho
 alter table stores add column if not exists target_roas numeric not null default 2.5;
 alter table stores add column if not exists niche text;              -- preset name, e.g. 'Fashion'
 alter table stores add column if not exists target_cogs_pct numeric; -- niche target COGS %, e.g. 33
+
+-- Halo: the product page the customer landed on for the order (Shopify customer journey).
+alter table order_lines add column if not exists landing_handle text;
+alter table order_lines add column if not exists landing_product_id bigint;
+alter table order_lines add column if not exists landing_google boolean;   -- came from a Google ad/link
+create index if not exists order_lines_landing on order_lines (store_id, landing_product_id, day);
+-- Set to re-fetch recent orders by creation date (e.g. after adding fields to the order sync).
+alter table stores add column if not exists orders_resync boolean not null default false;

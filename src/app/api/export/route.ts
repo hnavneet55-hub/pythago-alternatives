@@ -12,7 +12,8 @@ const COLUMNS = [
   ["refunds", "Refunds"], ["cogs", "COGS"], ["clicks", "Clicks"], ["impressions", "Impressions"], ["ctr", "CTR"],
   ["cpc", "CPC"], ["cpa", "CPA (spend ÷ orders)"], ["roas7", "ROAS 7D"], ["cost7", "Spend 7D"], ["rev7", "Revenue 7D"],
   ["roas14", "ROAS 14D"], ["cost14", "Spend 14D"], ["rev14", "Revenue 14D"], ["roas30", "ROAS 30D"],
-  ["cost30", "Spend 30D"], ["rev30", "Revenue 30D"], ["margin", "Margin per unit"], ["tags", "Tags"],
+  ["cost30", "Spend 30D"], ["rev30", "Revenue 30D"], ["margin", "Margin per unit"], ["halo", "Halo revenue"], ["halo_orders", "Halo orders"], ["roas_halo", "ROAS incl. halo"],
+  ["halo7", "Halo revenue 7D"], ["halo14", "Halo revenue 14D"], ["halo30", "Halo revenue 30D"], ["tags", "Tags"],
 ] as const;
 
 const cell = (v: unknown) => {

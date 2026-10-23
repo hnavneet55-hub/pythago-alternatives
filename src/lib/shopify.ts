@@ -17,6 +17,7 @@ export type StoreRow = {
   orders_cursor: string | null;
   orders_sync_from: Date | null;
   orders_synced_at: Date | null;
+  orders_resync: boolean;
 };
 
 const tokenCache = new Map<number, { token: string; expiresAt: number }>();
@@ -201,19 +202,26 @@ export async function syncProducts(store: StoreRow) {
   // Products deleted in Shopify: keep their history but mark them.
   await sql`update products set status = 'DELETED'
             where store_id = ${store.id} and status <> 'DELETED' and not (id::text = any(${seen}))`;
+  await sql`
+    update order_lines o set landing_product_id = p.id
+    from products p
+    where o.store_id = ${store.id} and o.landing_product_id is null and o.landing_handle is not null
+      and p.store_id = o.store_id and lower(p.handle) = o.landing_handle`;
   await sql`update stores set products_synced_at = now() where id = ${store.id}`;
   return count;
 }
 
 // ---------------------------------------------------------------- orders
 
-// Shipping country is protected customer data; if Shopify denies it we sync without it.
-const ordersQuery = (withCountry: boolean) => `query Orders($cursor: String, $query: String) {
+// Shipping country is protected customer data and the customer journey may be withheld too;
+// if Shopify denies a field we sync without it.
+const ordersQuery = (withCountry: boolean, withJourney: boolean) => `query Orders($cursor: String, $query: String) {
   orders(first: 50, after: $cursor, query: $query, sortKey: UPDATED_AT) {
     pageInfo { hasNextPage endCursor }
     nodes {
       id name createdAt updatedAt test cancelledAt currencyCode presentmentCurrencyCode
       ${withCountry ? "shippingAddress { countryCodeV2 }" : ""}
+      ${withJourney ? "customerJourneySummary { lastVisit { landingPage utmParameters { source } } firstVisit { landingPage utmParameters { source } } }" : ""}
       lineItems(first: 100) {
         nodes {
           id quantity sku product { id } variant { id }
@@ -232,6 +240,22 @@ const ordersQuery = (withCountry: boolean) => `query Orders($cursor: String, $qu
 }`;
 
 type Money = { shopMoney: { amount: string }; presentmentMoney: { amount: string } };
+type Visit = { landingPage: string | null; utmParameters: { source: string | null } | null };
+
+/**
+ * The product page an order's customer landed on (last visit, else first visit), from URLs like
+ * /products/handle, /en-us/products/handle or /collections/x/products/handle.
+ */
+export function landingFrom(journey: { lastVisit: Visit | null; firstVisit: Visit | null } | null | undefined) {
+  const visit = journey?.lastVisit?.landingPage ? journey.lastVisit : journey?.firstVisit;
+  const url = visit?.landingPage ?? "";
+  const handle = /\/products\/([^/?#]+)/i.exec(url)?.[1];
+  const source = visit?.utmParameters?.source ?? "";
+  return {
+    handle: handle ? decodeURIComponent(handle).toLowerCase() : null,
+    google: url ? /[?&](gclid|gbraid|wbraid|gad_source)=/i.test(url) || /google/i.test(source) : null,
+  };
+}
 type OrdersData = {
   orders: {
     pageInfo: { hasNextPage: boolean; endCursor: string | null };
@@ -243,6 +267,10 @@ type OrdersData = {
       cancelledAt: string | null;
       presentmentCurrencyCode: string;
       shippingAddress?: { countryCodeV2: string | null } | null;
+      customerJourneySummary?: {
+        lastVisit: Visit | null;
+        firstVisit: Visit | null;
+      } | null;
       lineItems: {
         nodes: {
           id: string;
@@ -275,24 +303,35 @@ export async function syncOrders(store: StoreRow, deadline: number) {
 
   let from = store.orders_sync_from;
   if (!from) {
-    from = store.orders_synced_at
-      ? new Date(store.orders_synced_at.getTime() - 2 * 3_600_000)
-      : new Date(Date.now() - INITIAL_SYNC_DAYS * 86_400_000);
+    from =
+      store.orders_synced_at && !store.orders_resync
+        ? new Date(store.orders_synced_at.getTime() - 2 * 3_600_000)
+        : new Date(Date.now() - INITIAL_SYNC_DAYS * 86_400_000);
     await sql`update stores set orders_sync_from = ${from}, orders_cursor = null where id = ${store.id}`;
   }
   let cursor = store.orders_cursor;
   let count = 0;
   let withCountry = true;
+  let withJourney = true;
+  // A resync re-fetches orders by creation date; normal runs fetch what changed since the last run.
+  const filter = store.orders_resync ? "created_at" : "updated_at";
+  const productByHandle = new Map(
+    (await sql<{ handle: string; id: string }[]>`select lower(handle) as handle, id::text from products where store_id = ${store.id} and handle is not null`).map(
+      (p) => [p.handle, p.id],
+    ),
+  );
 
   while (true) {
-    const variables = { cursor, query: `updated_at:>='${from.toISOString()}'` };
-    let data: OrdersData;
-    try {
-      data = await graphql<OrdersData>(store, ordersQuery(withCountry), variables);
-    } catch (e) {
-      if (!withCountry || !(e as { accessDenied?: boolean }).accessDenied) throw e;
-      withCountry = false;
-      data = await graphql<OrdersData>(store, ordersQuery(false), variables);
+    const variables = { cursor, query: `${filter}:>='${from.toISOString()}'` };
+    let data: OrdersData | null = null;
+    while (!data) {
+      try {
+        data = await graphql<OrdersData>(store, ordersQuery(withCountry, withJourney), variables);
+      } catch (e) {
+        if (!(e as { accessDenied?: boolean }).accessDenied || (!withCountry && !withJourney)) throw e;
+        if (withCountry) withCountry = false;
+        else withJourney = false;
+      }
     }
 
     const lines = [];
@@ -301,6 +340,7 @@ export async function syncOrders(store: StoreRow, deadline: number) {
       if (o.test) continue;
       const orderId = gidNum(o.id)!;
       const country = o.shippingAddress?.countryCodeV2 ?? null;
+      const landing = landingFrom(o.customerJourneySummary);
       const byLine = new Map<string, { product: string | null; variant: string | null }>();
       for (const li of o.lineItems.nodes) {
         const disc = (k: "shopMoney" | "presentmentMoney") =>
@@ -322,6 +362,9 @@ export async function syncOrders(store: StoreRow, deadline: number) {
           revenue_presentment: Number(li.originalTotalSet.presentmentMoney.amount) - disc("presentmentMoney"),
           presentment_currency: o.presentmentCurrencyCode,
           cancelled: o.cancelledAt !== null,
+          landing_handle: landing.handle,
+          landing_product_id: landing.handle ? (productByHandle.get(landing.handle) ?? null) : null,
+          landing_google: landing.google,
         });
       }
       for (const r of o.refunds) {
@@ -352,7 +395,9 @@ export async function syncOrders(store: StoreRow, deadline: number) {
           day = excluded.day, country = excluded.country, product_id = excluded.product_id,
           variant_id = excluded.variant_id, quantity = excluded.quantity,
           revenue_shop = excluded.revenue_shop, revenue_presentment = excluded.revenue_presentment,
-          presentment_currency = excluded.presentment_currency, cancelled = excluded.cancelled`;
+          presentment_currency = excluded.presentment_currency, cancelled = excluded.cancelled,
+          landing_handle = excluded.landing_handle, landing_product_id = excluded.landing_product_id,
+          landing_google = excluded.landing_google`;
     }
     if (refunds.length) {
       await sql`
@@ -365,8 +410,8 @@ export async function syncOrders(store: StoreRow, deadline: number) {
 
     const { hasNextPage, endCursor } = data.orders.pageInfo;
     if (!hasNextPage) {
-      await sql`update stores set orders_cursor = null, orders_sync_from = null, orders_synced_at = now()
-                where id = ${store.id}`;
+      await sql`update stores set orders_cursor = null, orders_sync_from = null, orders_synced_at = now(),
+                orders_resync = false where id = ${store.id}`;
       return { count, done: true };
     }
     cursor = endCursor;

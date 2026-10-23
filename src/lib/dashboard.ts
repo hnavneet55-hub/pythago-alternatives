@@ -27,6 +27,7 @@ export type DashboardRow = ReportRow & {
   target_cpa: number | null;
   threshold: number | null;
   cogs_pct: number | null;
+  roas_halo: number | null; // (own revenue + halo) ÷ ad spend
   ctr: number | null;
   cpc: number | null;
   cpa: number | null;
@@ -115,6 +116,7 @@ export function derive(r: ReportRow, storeName: string, targets: StoreTargets | 
     target_cpa: d?.targetCpa ?? null,
     threshold: d?.threshold ?? null,
     cogs_pct: d?.cogsPct ?? null,
+    roas_halo: div(r.revenue + r.halo, r.cost),
     ctr: div(r.clicks, r.impressions),
     cpc: div(r.cost, r.clicks),
     cpa: div(r.cost, r.orders), // ad spend ÷ Shopify orders
@@ -148,6 +150,7 @@ export async function loadDashboard(sp: SearchParams) {
   const names = new Map(stores.map((s) => [s.id, s.name]));
 
   let rows: DashboardRow[] = [];
+  let landingCoverage: number | null = null;
   if (scope.storeIds.length) {
     const report = await getReport({
       storeIds: scope.storeIds,
@@ -162,6 +165,12 @@ export async function loadDashboard(sp: SearchParams) {
       where store_id = any(${scope.storeIds}::int[]) and day between ${params.from} and ${params.to} and not cancelled
         and (${params.country}::text is null or country = ${params.country})
       group by store_id`;
+    const [cov] = await sql<{ known: number; total: number }[]>`
+      select count(distinct order_id) filter (where landing_handle is not null)::int as known,
+             count(distinct order_id)::int as total
+      from order_lines
+      where store_id = any(${scope.storeIds}::int[]) and day between ${params.from} and ${params.to} and not cancelled`;
+    landingCoverage = cov.total ? cov.known / cov.total : null;
     const revenueByStore = new Map<number, number>();
     for (const r of report) revenueByStore.set(r.store_id, (revenueByStore.get(r.store_id) ?? 0) + r.revenue);
     const targets = new Map(
@@ -211,7 +220,7 @@ export async function loadDashboard(sp: SearchParams) {
     .filter((d): d is Date => d !== null)
     .sort((a, b) => a.getTime() - b.getTime())[0];
 
-  return { params, stores, scope, rows, totals: totals(rows), allTags, lastSync: lastSync ?? null, decisionSummary };
+  return { params, stores, scope, rows, totals: totals(rows), allTags, lastSync: lastSync ?? null, decisionSummary, landingCoverage };
 }
 
 export async function getCountries(storeIds: number[]) {

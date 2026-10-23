@@ -131,6 +131,20 @@ const DECISION_COLUMNS: Column[] = [
   },
 ];
 
+// Halo (product rows only): sales of OTHER products from customers who landed on this product's page.
+// They're shown only here; the other products' own columns are unchanged.
+const HALO_COLUMNS: Column[] = [
+  { key: "halo", label: "Halo rev.", title: "Revenue of other products in orders whose customer landed on this product (selected dates)", render: (r, c) => money(r.halo, c) },
+  { key: "halo_orders", label: "Halo orders", title: "Orders that landed on this product but bought other products", render: (r) => int(r.halo_orders) },
+  {
+    key: "roas_halo", label: "ROAS + halo", title: "(This product's revenue + halo revenue) ÷ ad spend",
+    render: (r) => ratio(r.roas_halo), className: (r) => roasTone(r.roas_halo),
+  },
+  { key: "halo7", label: "7D", title: "Halo revenue, last 7 days", render: (r, c) => money(r.halo7, c) },
+  { key: "halo14", label: "14D", title: "Halo revenue, last 14 days", render: (r, c) => money(r.halo14, c) },
+  { key: "halo30", label: "30D", title: "Halo revenue, last 30 days", render: (r, c) => money(r.halo30, c) },
+];
+
 const STATUS_TONE: Record<string, string> = {
   ACTIVE: "bg-emerald-50 text-emerald-700 ring-emerald-200",
   DRAFT: "bg-slate-100 text-slate-600 ring-slate-200",
@@ -149,6 +163,7 @@ export function MetricsTable({
   sortHref,
   productHref,
   selectable = false,
+  haloNote,
 }: {
   rows: DashboardRow[];
   currency: string;
@@ -159,6 +174,7 @@ export function MetricsTable({
   sortHref: (key: string, dir: "asc" | "desc") => string;
   productHref?: (r: DashboardRow) => string;
   selectable?: boolean; // product checkboxes for the bulk status bar
+  haloNote?: string;
 }) {
   const head = (key: string, label: string, title?: string, extra = "") => {
     const active = sort === key;
@@ -192,6 +208,11 @@ export function MetricsTable({
               </th>
             ))}
             <th />
+            {mode === "product" && (
+              <th colSpan={HALO_COLUMNS.length} className="border-l border-slate-200 bg-sky-50/50 px-3 pt-2 text-center font-semibold text-sky-800" title={haloNote}>
+                Halo (landed here, bought other products)
+              </th>
+            )}
           </tr>
           <tr className="[&>th]:border-b [&>th]:border-slate-200">
             {selectable ? (
@@ -211,6 +232,8 @@ export function MetricsTable({
             {mode === "product" ? head("variant_count", "Variants") : head("unit_cost", "Unit cost")}
             {mode === "product" && DECISION_COLUMNS.map((c) => head(c.key, c.label, c.title, "bg-violet-50/40"))}
             {COLUMNS.map((c) => head(c.key, c.label, c.title, c.group && c.key.startsWith("roas") ? "border-l border-slate-200" : ""))}
+            {mode === "product" &&
+              HALO_COLUMNS.map((c, i) => head(c.key, c.label, c.title, `bg-sky-50/50 ${i === 0 ? "border-l border-slate-200" : ""}`))}
           </tr>
         </thead>
         <tbody>
@@ -294,6 +317,15 @@ export function MetricsTable({
                   {c.render(r, currency)}
                 </td>
               ))}
+              {mode === "product" &&
+                HALO_COLUMNS.map((c, i) => (
+                  <td
+                    key={c.key}
+                    className={`whitespace-nowrap px-3 py-2 ${c.className?.(r) ?? ""} ${i === 0 ? "border-l border-slate-200" : ""}`}
+                  >
+                    {c.render(r, currency)}
+                  </td>
+                ))}
             </tr>
           ))}
         </tbody>
