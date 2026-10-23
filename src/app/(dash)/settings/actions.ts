@@ -30,18 +30,21 @@ export async function addStore(_prev: ActionState, form: FormData): Promise<Acti
   if (!s.accessToken && !(s.clientId && s.clientSecret)) {
     return { error: "Enter the app's Client ID and Client secret (or an Admin API access token)" };
   }
-  try {
-    await sql`
-      insert into stores (name, shop_domain, client_id, client_secret_enc, access_token_enc, ingest_key)
-      values (${s.name}, ${s.shopDomain}, ${s.clientId || null},
-              ${s.clientSecret ? encrypt(s.clientSecret) : null},
-              ${s.accessToken ? encrypt(s.accessToken) : null}, ${randomKey()})`;
-  } catch (e) {
-    if (e instanceof Error && e.message.includes("duplicate")) return { error: "That store is already connected" };
-    throw e;
-  }
+  // Re-adding an existing domain updates its name and credentials and keeps its data and script key.
+  const [row] = await sql<{ inserted: boolean }[]>`
+    insert into stores (name, shop_domain, client_id, client_secret_enc, access_token_enc, ingest_key)
+    values (${s.name}, ${s.shopDomain}, ${s.clientId || null},
+            ${s.clientSecret ? encrypt(s.clientSecret) : null},
+            ${s.accessToken ? encrypt(s.accessToken) : null}, ${randomKey()})
+    on conflict (shop_domain) do update set
+      name = excluded.name, client_id = excluded.client_id,
+      client_secret_enc = excluded.client_secret_enc, access_token_enc = excluded.access_token_enc,
+      last_sync_error = null
+    returning (xmax = 0) as inserted`;
   refresh();
-  return { ok: `${s.name} added. Run "Sync now" to import products and orders.` };
+  return row.inserted
+    ? { ok: `${s.name} added. Open it in the list above and press "Sync now".` }
+    : { ok: `Credentials for ${s.name} updated (data and Google Ads script unchanged). Press "Sync now" to test them.` };
 }
 
 export async function syncStore(storeId: number): Promise<ActionState> {

@@ -38,7 +38,18 @@ async function getAccessToken(store: StoreRow) {
       grant_type: "client_credentials",
     }),
   });
-  if (!res.ok) throw new Error(`Shopify token request failed (${res.status}): ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    if (text.includes("shop_not_permitted")) {
+      throw new Error(
+        "Shopify refused the Client ID/secret for this store. The app and the store must be in the same Shopify organization, and the app must be installed on this store (see the Setup guide, part 1).",
+      );
+    }
+    if (res.status === 400 || res.status === 401) {
+      throw new Error(`Shopify rejected the Client ID or Client secret. Copy both again from the app's Settings page in the Dev Dashboard. (${text.slice(0, 200)})`);
+    }
+    throw new Error(`Shopify token request failed (${res.status}): ${text.slice(0, 300)}`);
+  }
   const body = (await res.json()) as { access_token: string; expires_in: number };
   tokenCache.set(store.id, { token: body.access_token, expiresAt: Date.now() + body.expires_in * 1000 });
   return body.access_token;
@@ -52,6 +63,11 @@ async function graphql<T>(store: StoreRow, query: string, variables: Record<stri
       headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
       body: JSON.stringify({ query, variables }),
     });
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `Shopify denied access (${res.status}). Check that the app is installed on this store and its released version includes the required scopes.`,
+      );
+    }
     if (res.status === 429 || res.status >= 500) {
       if (attempt >= 5) throw new Error(`Shopify API error ${res.status}`);
       await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
@@ -62,7 +78,13 @@ async function graphql<T>(store: StoreRow, query: string, variables: Record<stri
       await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
       continue;
     }
-    if (body.errors?.length) throw new Error(`Shopify GraphQL: ${body.errors.map((e) => e.message).join("; ")}`);
+    if (body.errors?.length) {
+      const err = new Error(`Shopify GraphQL: ${body.errors.map((e) => e.message).join("; ")}`);
+      (err as Error & { accessDenied?: boolean }).accessDenied = body.errors.some(
+        (e) => e.extensions?.code === "ACCESS_DENIED" || /access denied/i.test(e.message),
+      );
+      throw err;
+    }
     return body.data as T;
   }
 }
@@ -182,12 +204,13 @@ export async function syncProducts(store: StoreRow) {
 
 // ---------------------------------------------------------------- orders
 
-const ORDERS_QUERY = `query Orders($cursor: String, $query: String) {
+// Shipping country is protected customer data; if Shopify denies it we sync without it.
+const ordersQuery = (withCountry: boolean) => `query Orders($cursor: String, $query: String) {
   orders(first: 50, after: $cursor, query: $query, sortKey: UPDATED_AT) {
     pageInfo { hasNextPage endCursor }
     nodes {
       id name createdAt updatedAt test cancelledAt currencyCode presentmentCurrencyCode
-      shippingAddress { countryCodeV2 }
+      ${withCountry ? "shippingAddress { countryCodeV2 }" : ""}
       lineItems(first: 100) {
         nodes {
           id quantity sku product { id } variant { id }
@@ -216,7 +239,7 @@ type OrdersData = {
       test: boolean;
       cancelledAt: string | null;
       presentmentCurrencyCode: string;
-      shippingAddress: { countryCodeV2: string | null } | null;
+      shippingAddress?: { countryCodeV2: string | null } | null;
       lineItems: {
         nodes: {
           id: string;
@@ -256,12 +279,18 @@ export async function syncOrders(store: StoreRow, deadline: number) {
   }
   let cursor = store.orders_cursor;
   let count = 0;
+  let withCountry = true;
 
   while (true) {
-    const data: OrdersData = await graphql<OrdersData>(store, ORDERS_QUERY, {
-      cursor,
-      query: `updated_at:>='${from.toISOString()}'`,
-    });
+    const variables = { cursor, query: `updated_at:>='${from.toISOString()}'` };
+    let data: OrdersData;
+    try {
+      data = await graphql<OrdersData>(store, ordersQuery(withCountry), variables);
+    } catch (e) {
+      if (!withCountry || !(e as { accessDenied?: boolean }).accessDenied) throw e;
+      withCountry = false;
+      data = await graphql<OrdersData>(store, ordersQuery(false), variables);
+    }
 
     const lines = [];
     const refunds = [];

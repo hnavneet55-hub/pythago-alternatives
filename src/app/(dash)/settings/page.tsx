@@ -1,8 +1,9 @@
 import { Suspense } from "react";
-import { headers } from "next/headers";
+import Link from "next/link";
 import { sql } from "@/lib/db";
 import { adsScript } from "@/lib/ads-script";
 import { timeAgo } from "@/lib/format";
+import { appOrigin } from "@/lib/origin";
 import { AddStoreForm, CopyBlock, StoreActions } from "./forms";
 
 export const metadata = { title: "Stores & setup · AdProfit" };
@@ -16,23 +17,28 @@ export default function SettingsPage() {
           Each store connects to Shopify (sales, products, costs) and to one Google Ads account through a script (ad spend per SKU).
         </p>
       </div>
+      <Link
+        href="/guide"
+        className="flex items-center justify-between gap-4 rounded-xl border border-violet-200 bg-violet-50 px-5 py-4 text-sm text-violet-900 hover:bg-violet-100"
+      >
+        <span>
+          <strong>First time connecting a store?</strong> Follow the step-by-step setup guide. It covers the Shopify app, adding stores and the
+          Google Ads script, with fixes for common errors.
+        </span>
+        <span className="shrink-0 font-medium">Open setup guide →</span>
+      </Link>
       <Suspense fallback={<div className="text-slate-500">Loading stores…</div>}>
         <StoreList />
       </Suspense>
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
         <h2 className="mb-1 font-semibold">Connect a Shopify store</h2>
-        <ol className="mb-5 list-decimal space-y-1 pl-5 text-sm text-slate-600">
-          <li>
-            In the Shopify <strong>Dev Dashboard</strong> (dev.shopify.com), create an app in the same organization as your stores.
-          </li>
-          <li>
-            Create a version with scopes <code className="rounded bg-slate-100 px-1">read_products</code>,{" "}
-            <code className="rounded bg-slate-100 px-1">read_orders</code>,{" "}
-            <code className="rounded bg-slate-100 px-1">read_all_orders</code>,{" "}
-            <code className="rounded bg-slate-100 px-1">read_inventory</code>, then release it and install it on the store.
-          </li>
-          <li>Copy the app&apos;s Client ID and Client secret from its settings page into the form below.</li>
-        </ol>
+        <p className="mb-5 text-sm text-slate-600">
+          Before filling this in, create the Shopify app and install it on the store:{" "}
+          <Link href="/guide#part-1" className="font-medium text-violet-700 hover:underline">
+            setup guide, parts 1 and 2
+          </Link>
+          . To change a store&apos;s credentials, submit this form again with the same Shopify domain. Its data is kept.
+        </p>
         <AddStoreForm />
       </section>
     </div>
@@ -40,13 +46,7 @@ export default function SettingsPage() {
 }
 
 async function StoreList() {
-  const h = await headers();
-  const origin =
-    process.env.APP_URL ??
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host")}`);
-  const endpoint = `${origin}/api/ingest/google-ads`;
+  const endpoint = `${await appOrigin()}/api/ingest/google-ads`;
 
   const stores = await sql<
     {
