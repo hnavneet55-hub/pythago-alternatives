@@ -71,6 +71,16 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       select ${f.from}::date as d_from, ${f.to}::date as d_to,
              least(${f.from}::date, ${f.to}::date - 29) as d_min
     ),
+    -- Exchange rates resolved once per store and day (not once per row).
+    rates as materialized (
+      select s.id as store_id, d::date as day,
+             fx(s.ads_currency, ${cur}, d::date) as ads_rate,
+             fx(s.shop_currency, ${cur}, d::date) as shop_rate,
+             s.shop_currency, s.default_cogs_pct
+      from stores s cross join bounds b
+      cross join generate_series(b.d_min, b.d_to, interval '1 day') d
+      where s.id = any(${f.storeIds}::int[])
+    ),
     ads as (
       select a.store_id, ${variantMode ? sql`a.variant_id` : sql`a.product_id`} as key_id,
         sum(a.cost * r.rate)       filter (where a.day >= b.d_from) as cost,
@@ -85,9 +95,9 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
         sum(a.cost * r.rate)       filter (where a.day > b.d_to - 30) as cost30,
         sum(a.impressions)         filter (where a.day > b.d_to - 30) as imp30
       from ad_stats a
-      join stores s on s.id = a.store_id
+      join rates rt on rt.store_id = a.store_id and rt.day = a.day
       cross join bounds b
-      cross join lateral (select fx(s.ads_currency, ${cur}, a.day) as rate) r
+      cross join lateral (select rt.ads_rate as rate) r
       where a.store_id = any(${f.storeIds}::int[])
         and a.day between b.d_min and b.d_to
         and a.product_id is not null
@@ -105,19 +115,19 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
         sum(x.rev) filter (where o.day > b.d_to - 14) as rev14,
         sum(x.rev) filter (where o.day > b.d_to - 30) as rev30
       from order_lines o
-      join stores s on s.id = o.store_id
+      join rates rt on rt.store_id = o.store_id and rt.day = o.day
       cross join bounds b
       left join variants v on v.store_id = o.store_id and v.id = o.variant_id
       left join products p on p.store_id = o.store_id and p.id = o.product_id
       cross join lateral (
         select case when o.presentment_currency = ${cur} then o.revenue_presentment
-                    else o.revenue_shop * fx(s.shop_currency, ${cur}, o.day) end as rev
+                    else o.revenue_shop * rt.shop_rate end as rev
       ) r
       cross join lateral (
         select r.rev,
                case when coalesce(p.cogs_override, v.unit_cost) is not null
-                      then o.quantity * coalesce(p.cogs_override, v.unit_cost) * fx(s.shop_currency, ${cur}, o.day)
-                    when s.default_cogs_pct is not null then r.rev * s.default_cogs_pct / 100
+                      then o.quantity * coalesce(p.cogs_override, v.unit_cost) * rt.shop_rate
+                    when rt.default_cogs_pct is not null then r.rev * rt.default_cogs_pct / 100
                end as cogs
       ) x
       where o.store_id = any(${f.storeIds}::int[])
@@ -132,9 +142,10 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       select rl.store_id, ${variantMode ? sql`rl.variant_id` : sql`rl.product_id`} as key_id,
         sum(rl.quantity) as refund_qty,
         sum(case when rl.presentment_currency = ${cur} then rl.amount_presentment
-                 else rl.amount_shop * fx(s.shop_currency, ${cur}, rl.day) end) as refunds
+                 else rl.amount_shop * rt.shop_rate end) as refunds
       from refund_lines rl
       join stores s on s.id = rl.store_id
+      join rates rt on rt.store_id = rl.store_id and rt.day = rl.day
       cross join bounds b
       where rl.store_id = any(${f.storeIds}::int[])
         and rl.day between b.d_from and b.d_to

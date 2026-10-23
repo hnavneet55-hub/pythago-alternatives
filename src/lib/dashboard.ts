@@ -78,11 +78,11 @@ export function resolveScope(stores: StoreSummary[], storeIds: number[], cur = "
   const currency = currencies.length === 1 ? currencies[0] : options.includes(cur) ? cur : reporting;
   return {
     storeIds: selected.map((s) => s.id),
-    allSelected: picked.length === 0 || picked.length === stores.length,
+    allSelected: picked.length === 0, // an explicit selection stays explicit, even if it covers every store
     currency,
     currencyOptions: options,
     mixed: currencies.length > 1,
-    label: picked.length === 0 || picked.length === stores.length ? "All stores" : picked.map((s) => s.name).join(", "),
+    label: picked.length === 0 ? "All stores" : picked.map((s) => s.name).join(", "),
   };
 }
 

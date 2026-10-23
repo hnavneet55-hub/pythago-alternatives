@@ -16,13 +16,13 @@ export function StoreSwitcher({ stores, selectedIds, currency, currencyOptions, 
   const pathname = usePathname();
   const sp = useSearchParams();
   const [pending, startTransition] = useTransition();
-  const all = selectedIds.length === 0 || selectedIds.length === stores.length;
+  const all = selectedIds.length === 0;
 
   function go(ids: number[], cur?: string) {
     const next = new URLSearchParams(sp.toString());
     next.delete("store");
     next.delete("page");
-    if (ids.length === 0 || ids.length === stores.length) next.delete("stores");
+    if (ids.length === 0) next.delete("stores");
     else next.set("stores", ids.join(","));
     if (cur !== undefined) {
       if (cur) next.set("cur", cur);
@@ -32,9 +32,10 @@ export function StoreSwitcher({ stores, selectedIds, currency, currencyOptions, 
     startTransition(() => router.push(qs ? `${pathname}?${qs}` : pathname));
   }
 
+  // From "All stores", clicking a store shows just that store; after that, clicks add or remove stores.
   function toggle(id: number) {
-    const current = all ? [] : selectedIds;
-    go(current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
+    if (all) return go([id]);
+    go(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
   }
 
   const pill = (active: boolean) =>
