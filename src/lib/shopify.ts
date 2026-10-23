@@ -105,7 +105,7 @@ const PRODUCTS_QUERY = `query Products($cursor: String) {
   products(first: 50, after: $cursor) {
     pageInfo { hasNextPage endCursor }
     nodes {
-      id title handle status tags
+      id title handle status tags publishedAt
       featuredMedia { preview { image { url } } }
       variants(first: 250) {
         nodes { id sku title price inventoryItem { unitCost { amount currencyCode } } }
@@ -124,6 +124,7 @@ type ProductsData = {
       handle: string;
       status: string;
       tags: string[];
+      publishedAt: string | null;
       featuredMedia: { preview: { image: { url: string } | null } | null } | null;
       variants: {
         nodes: {
@@ -161,6 +162,7 @@ export async function syncProducts(store: StoreRow) {
         image_url: p.featuredMedia?.preview?.image?.url ?? null,
         price: prices.length ? Math.min(...prices) : null,
         tags: p.tags,
+        published_at: p.publishedAt,
         variant_count: p.variants.nodes.length,
       };
     });
@@ -181,6 +183,7 @@ export async function syncProducts(store: StoreRow) {
         on conflict (store_id, id) do update set
           title = excluded.title, handle = excluded.handle, status = excluded.status,
           image_url = excluded.image_url, price = excluded.price, tags = excluded.tags,
+          published_at = excluded.published_at,
           variant_count = excluded.variant_count, updated_at = now()`;
     }
     if (variants.length) {

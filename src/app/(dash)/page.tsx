@@ -70,8 +70,19 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
             {scope.mixed && " (converted at daily ECB rates)"}
           </span>
           <span className="ml-auto">Last Google Ads sync: {timeAgo(lastSync)}</span>
-          <a href={exportHref} className="rounded-md border border-violet-300 px-3 py-1.5 font-medium text-violet-700 hover:bg-violet-50">
-            Export CSV
+          <a
+            href={hrefWith("/api/export/store", sp, { page: null })}
+            title="One row per product with 30/14/7-day blocks ending on the end date (same layout as Pythago's export)"
+            className="rounded-md bg-violet-600 px-3 py-1.5 font-medium text-white hover:bg-violet-700"
+          >
+            Export store report
+          </a>
+          <a
+            href={exportHref}
+            title="The table as shown, with the current filters and date range"
+            className="rounded-md border border-violet-300 px-3 py-1.5 font-medium text-violet-700 hover:bg-violet-50"
+          >
+            Export table
           </a>
         </div>
       </section>

@@ -19,6 +19,7 @@ export type ReportRow = {
   status: string | null;
   image_url: string | null;
   tags: string[];
+  published_at: string | null; // YYYY-MM-DD
   variant_count: number;
   price: number | null;
   unit_cost: number | null;
@@ -166,7 +167,7 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       coalesce(p.title, 'Unknown product ' || ${variantMode ? sql`v.product_id` : sql`k.key_id`}) as title,
       ${variantMode ? sql`coalesce(v.title, 'Unknown variant ' || k.key_id)` : sql`null`} as variant_title,
       ${variantMode ? sql`v.sku` : sql`null`} as sku,
-      p.status, p.image_url, coalesce(p.tags, '{}') as tags, coalesce(p.variant_count, 0) as variant_count,
+      p.status, p.image_url, coalesce(p.tags, '{}') as tags, p.published_at::date::text as published_at, coalesce(p.variant_count, 0) as variant_count,
       ${variantMode ? sql`v.price` : sql`p.price`} * fx(s.shop_currency, ${cur}, b.d_to) as price,
       coalesce(
         ${variantMode

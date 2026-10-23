@@ -137,3 +137,5 @@ alter table order_lines add column if not exists ext_cogs_source text;
 alter table products add column if not exists invoiced_unit_cost numeric;
 alter table stores add column if not exists cogs_imported_at timestamptz;
 alter table stores add column if not exists cogs_import_error text;
+
+alter table products add column if not exists published_at timestamptz;   -- Shopify publishedAt
