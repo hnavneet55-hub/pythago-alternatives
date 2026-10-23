@@ -27,7 +27,7 @@ async function Product({ params, searchParams }: PageProps<"/products/[storeId]/
   const stores = await getStoreSummaries();
   const store = stores.find((s) => String(s.id) === storeId);
   if (!store) notFound();
-  const scope = resolveScope(stores, storeId);
+  const scope = resolveScope(stores, [store.id]);
 
   const [product] = await sql<{ title: string; status: string; handle: string | null; image_url: string | null }[]>`
     select title, status, handle, image_url from products where store_id = ${store.id} and id = ${productId}::bigint`;
@@ -73,7 +73,7 @@ async function Product({ params, searchParams }: PageProps<"/products/[storeId]/
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
-        <FilterBar stores={stores} countries={countries} tags={[]} showStore={false} showProductFilters={false} />
+        <FilterBar countries={countries} tags={[]} showProductFilters={false} />
       </section>
 
       <SummaryCards t={totals(rows)} currency={scope.currency} label="SKUs with activity" />

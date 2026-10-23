@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { addStore, removeStore, rotateIngestKey, syncStore, type ActionState } from "./actions";
+import { addStore, removeStore, rotateIngestKey, setDefaultCogs, syncStore, type ActionState } from "./actions";
 
 const input =
   "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200";
@@ -115,5 +115,29 @@ export function CopyBlock({ text }: { text: string }) {
       </button>
       <pre className="max-h-72 overflow-auto rounded-lg bg-slate-900 p-4 text-[12px] leading-relaxed text-slate-100">{text}</pre>
     </div>
+  );
+}
+
+export function CogsForm({ storeId, value }: { storeId: number; value: string }) {
+  const [state, action, pending] = useActionState(setDefaultCogs, null);
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="storeId" value={storeId} />
+      <div className="relative">
+        <input
+          name="pct"
+          defaultValue={value}
+          inputMode="decimal"
+          placeholder="e.g. 35"
+          aria-label="Default cost of goods percent"
+          className="h-9 w-28 rounded-md border border-slate-300 pl-3 pr-7 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200"
+        />
+        <span className="pointer-events-none absolute right-2.5 top-2 text-sm text-slate-400">%</span>
+      </div>
+      <button disabled={pending} className="h-9 rounded-md bg-violet-600 px-3 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60">
+        {pending ? "Saving…" : "Save"}
+      </button>
+      <Message state={state} />
+    </form>
   );
 }

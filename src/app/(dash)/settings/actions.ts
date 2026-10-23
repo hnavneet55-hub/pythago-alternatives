@@ -76,3 +76,18 @@ export async function rotateIngestKey(storeId: number) {
   await sql`update stores set ingest_key = ${randomKey()} where id = ${storeId}`;
   refresh();
 }
+
+export async function setDefaultCogs(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const storeId = Number(form.get("storeId"));
+  const raw = String(form.get("pct") ?? "").trim().replace(",", ".").replace("%", "");
+  if (raw === "") {
+    await sql`update stores set default_cogs_pct = null where id = ${storeId}`;
+    refresh();
+    return { ok: "Default removed" };
+  }
+  const pct = Number(raw);
+  if (!Number.isFinite(pct) || pct < 0 || pct >= 100) return { error: "Enter a percentage between 0 and 99" };
+  await sql`update stores set default_cogs_pct = ${pct} where id = ${storeId}`;
+  refresh();
+  return { ok: `Saved: ${pct}% of revenue` };
+}

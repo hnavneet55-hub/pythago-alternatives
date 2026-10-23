@@ -18,8 +18,17 @@ const COLUMNS: Column[] = [
   { key: "cost", label: "Ad spend", title: "Google Ads cost", render: (r, c) => money(r.cost, c) },
   { key: "revenue", label: "Revenue", title: "Shopify revenue after discounts", render: (r, c) => money(r.revenue, c) },
   { key: "roas", label: "ROAS", title: "Shopify revenue ÷ ad spend", render: (r) => ratio(r.roas), className: (r) => roasTone(r.roas) },
-  { key: "profit", label: "Net profit", title: "Revenue − refunds − COGS − ad spend",
-    render: (r, c) => <span className={r.profit < 0 ? "text-red-600" : "text-emerald-700"}>{money(r.profit, c)}</span> },
+  {
+    key: "profit", label: "Net profit", title: "Revenue − refunds − COGS − ad spend",
+    render: (r, c) =>
+      r.profit === null ? (
+        <span className="text-[12px] font-medium text-amber-600" title="Some sales have no cost of goods. Set a cost in Shopify or a default % for the store.">
+          Needs COGS
+        </span>
+      ) : (
+        <span className={r.profit < 0 ? "text-red-600" : "text-emerald-700"}>{money(r.profit, c)}</span>
+      ),
+  },
   { key: "conversions", label: "Conv.", title: "Conversions measured by Google Ads", render: (r) => <span className="text-violet-700">{ratio(r.conversions).replace(/\.00$/, "")}</span> },
   { key: "g_conv_value", label: "Conv. value", title: "Conversion value measured by Google Ads", render: (r, c) => money(r.g_conv_value, c) },
   {
@@ -32,7 +41,10 @@ const COLUMNS: Column[] = [
     ),
   },
   { key: "refunds", label: "Refunds", render: (r, c) => (r.refunds ? <span className="text-red-600">−{money(r.refunds, c)}</span> : "–") },
-  { key: "cogs", label: "COGS", title: "Cost of goods sold (Shopify cost per item)", render: (r, c) => money(r.cogs, c) },
+  {
+    key: "cogs", label: "COGS", title: "Cost of goods: product override, else Shopify cost per item, else the store's default %",
+    render: (r, c) => (r.rev_no_cogs > 0.005 ? <span className="text-amber-600">{r.cogs > 0 ? `${money(r.cogs, c)}+` : "Not set"}</span> : money(r.cogs, c)),
+  },
   { key: "clicks", label: "Clicks", render: (r) => <span className="text-violet-700">{int(r.clicks)}</span> },
   { key: "ctr", label: "CTR", render: (r) => <span className="text-emerald-700">{pct(r.ctr)}</span> },
   { key: "cpc", label: "CPC", render: (r, c) => money(r.cpc, c) },

@@ -123,3 +123,7 @@ language sql stable as $$
         (select per_eur from fx_rates where currency = src and day <= d order by day desc limit 1) end, 0)
   end
 $$;
+
+-- Fallback cost of goods as % of revenue, used when a variant has no Shopify cost per item.
+alter table stores add column if not exists default_cogs_pct numeric
+  check (default_cogs_pct is null or (default_cogs_pct >= 0 and default_cogs_pct < 100));

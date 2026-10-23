@@ -3,7 +3,8 @@ import Link from "next/link";
 import { FilterBar } from "@/components/filter-bar";
 import { MetricsTable } from "@/components/metrics-table";
 import { SummaryCards } from "@/components/summary-cards";
-import { getCountries, hrefWith, loadDashboard, type SearchParams } from "@/lib/dashboard";
+import { StoreSwitcher } from "@/components/store-switcher";
+import { getCountries, hrefWith, loadDashboard, storeCurrency, type SearchParams } from "@/lib/dashboard";
 import { timeAgo } from "@/lib/format";
 
 const PAGE_SIZE = 50;
@@ -51,10 +52,20 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
-        <FilterBar stores={stores} countries={countries} tags={allTags} />
+        <div className="mb-4 border-b border-slate-100 pb-4">
+          <StoreSwitcher
+            stores={stores.map((s) => ({ id: s.id, name: s.name, currency: storeCurrency(s) }))}
+            selectedIds={scope.allSelected ? [] : scope.storeIds}
+            currency={scope.currency}
+            currencyOptions={scope.currencyOptions}
+            mixed={scope.mixed}
+          />
+        </div>
+        <FilterBar countries={countries} tags={allTags} />
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-500">
           <span>
             Performance data · {params.from} to {params.to} · values in <strong className="text-slate-700">{scope.currency}</strong>
+            {scope.mixed && " (converted at daily ECB rates)"}
           </span>
           <span className="ml-auto">Last Google Ads sync: {timeAgo(lastSync)}</span>
           <a href={exportHref} className="rounded-md border border-violet-300 px-3 py-1.5 font-medium text-violet-700 hover:bg-violet-50">
@@ -62,6 +73,24 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
           </a>
         </div>
       </section>
+
+      {!totals.cogsComplete && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+          <div className="min-w-0 flex-1">
+            <strong>Cost of goods is missing</strong> for {Math.round(totals.cogsMissingShare * 100)}% of revenue ({totals.productsNoCogs}{" "}
+            {totals.productsNoCogs === 1 ? "product" : "products"}). Net profit and POAS are hidden until costs are known, so they&apos;re
+            never calculated with a cost of 0.
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Link href="/settings#cogs" className="rounded-md bg-amber-600 px-3 py-1.5 font-medium text-white hover:bg-amber-700">
+              Set a default COGS %
+            </Link>
+            <Link href="/guide#before" className="rounded-md border border-amber-300 px-3 py-1.5 font-medium hover:bg-amber-100">
+              Add costs in Shopify
+            </Link>
+          </div>
+        </div>
+      )}
 
       <SummaryCards t={totals} currency={scope.currency} />
 

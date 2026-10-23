@@ -4,10 +4,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
 type Props = {
-  stores: { id: number; name: string }[];
   countries: string[];
   tags: string[];
-  showStore?: boolean;
   showProductFilters?: boolean;
 };
 
@@ -24,7 +22,7 @@ const PRESETS = [
 const field =
   "h-9 rounded-md border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-200";
 
-export function FilterBar({ stores, countries, tags, showStore = true, showProductFilters = true }: Props) {
+export function FilterBar({ countries, tags, showProductFilters = true }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -61,16 +59,6 @@ export function FilterBar({ stores, countries, tags, showStore = true, showProdu
         </form>
       )}
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        {showStore && (
-          <select className={field} value={sp.get("store") ?? "all"} onChange={(e) => update({ store: e.target.value })}>
-            <option value="all">All stores</option>
-            {stores.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        )}
         {showProductFilters && (
           <select className={field} value={sp.get("status") ?? ""} onChange={(e) => update({ status: e.target.value })}>
             <option value="">All statuses</option>

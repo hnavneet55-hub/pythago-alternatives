@@ -4,7 +4,7 @@ import { sql } from "@/lib/db";
 import { adsScript } from "@/lib/ads-script";
 import { timeAgo } from "@/lib/format";
 import { appOrigin } from "@/lib/origin";
-import { AddStoreForm, CopyBlock, StoreActions } from "./forms";
+import { AddStoreForm, CogsForm, CopyBlock, StoreActions } from "./forms";
 
 export const metadata = { title: "Stores & setup · AdProfit" };
 
@@ -29,6 +29,7 @@ export default function SettingsPage() {
       </Link>
       <Suspense fallback={<div className="text-slate-500">Loading stores…</div>}>
         <StoreList />
+        <CogsSettings />
       </Suspense>
       <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
         <h2 className="mb-1 font-semibold">Connect a Shopify store</h2>
@@ -112,5 +113,50 @@ async function StoreList() {
         </details>
       ))}
     </div>
+  );
+}
+
+async function CogsSettings() {
+  const stores = await sql<
+    { id: number; name: string; default_cogs_pct: string | null; variants: number; with_cost: number }[]
+  >`
+    select s.id, s.name, s.default_cogs_pct::text,
+           (select count(*)::int from variants v where v.store_id = s.id) as variants,
+           (select count(*)::int from variants v where v.store_id = s.id and v.unit_cost is not null) as with_cost
+    from stores s order by s.name`;
+  if (stores.length === 0) return null;
+
+  return (
+    <section id="cogs" className="scroll-mt-20 rounded-xl border border-slate-200 bg-white p-6 shadow-xs">
+      <h2 className="mb-1 font-semibold">Cost of goods</h2>
+      <p className="mb-4 text-sm text-slate-600">
+        Profit needs a cost for every sale. AdProfit uses, in order: the <strong>Shopify “Cost per item”</strong> of the variant sold, then
+        this <strong>default % of revenue</strong> for anything without a cost. If neither exists, net profit and POAS stay hidden instead
+        of counting the cost as 0.
+      </p>
+      <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+        {stores.map((s) => {
+          const coverage = s.variants ? Math.round((s.with_cost / s.variants) * 100) : 0;
+          return (
+            <div key={s.id} className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
+              <div className="min-w-48 flex-1">
+                <div className="font-medium">{s.name}</div>
+                <div className={`text-xs ${coverage === 100 ? "text-emerald-700" : "text-amber-700"}`}>
+                  Shopify cost per item: {s.with_cost.toLocaleString()} of {s.variants.toLocaleString()} variants ({coverage}%)
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-600">Default COGS</span>
+                <CogsForm storeId={s.id} value={s.default_cogs_pct === null ? "" : String(Number(s.default_cogs_pct))} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Example: 35% means a $50 sale is counted as $17.50 cost of goods. Clear the field and save to remove the default. Costs entered in
+        Shopify always take priority and are picked up at the next sync.
+      </p>
+    </section>
   );
 }

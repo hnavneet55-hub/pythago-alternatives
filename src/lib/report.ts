@@ -32,6 +32,7 @@ export type ReportRow = {
   refund_qty: number;
   refunds: number;
   cogs: number;
+  rev_no_cogs: number; // revenue with no cost basis (no product override, Shopify cost or store default %)
   cost7: number;
   rev7: number;
   imp7: number;
@@ -45,7 +46,7 @@ export type ReportRow = {
 
 const NUMERIC_KEYS = [
   "price", "unit_cost", "cost", "impressions", "clicks", "conversions", "g_conv_value", "qty", "revenue",
-  "refund_qty", "refunds", "cogs", "cost7", "rev7", "imp7", "cost14", "rev14", "imp14", "cost30", "rev30", "imp30",
+  "refund_qty", "refunds", "cogs", "rev_no_cogs", "cost7", "rev7", "imp7", "cost14", "rev14", "imp14", "cost30", "rev30", "imp30",
 ] as const;
 
 /**
@@ -53,6 +54,10 @@ const NUMERIC_KEYS = [
  * `level` is "variant"), converted into `currency`. Shopify revenue uses the customer's
  * presentment amount when it is already in the display currency, otherwise the shop
  * amount converted with the ECB rate for the order day.
+ *
+ * Cost of goods per unit: product override, else Shopify "cost per item", else the
+ * store's default % of revenue. Revenue with none of these is reported in rev_no_cogs
+ * so profit is never computed with a silent zero cost.
  */
 export async function getReport(f: ReportFilters, level: "product" | "variant" = "product") {
   const variantMode = level === "variant";
@@ -94,8 +99,8 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       select o.store_id, ${variantMode ? sql`o.variant_id` : sql`o.product_id`} as key_id,
         sum(o.quantity)                       filter (where o.day >= b.d_from) as qty,
         sum(x.rev)                            filter (where o.day >= b.d_from) as revenue,
-        sum(o.quantity * coalesce(p.cogs_override, v.unit_cost, 0) * x.shop_rate)
-                                              filter (where o.day >= b.d_from) as cogs,
+        sum(x.cogs)                           filter (where o.day >= b.d_from) as cogs,
+        sum(x.rev)                            filter (where o.day >= b.d_from and x.cogs is null) as rev_no_cogs,
         sum(x.rev) filter (where o.day > b.d_to - 7)  as rev7,
         sum(x.rev) filter (where o.day > b.d_to - 14) as rev14,
         sum(x.rev) filter (where o.day > b.d_to - 30) as rev30
@@ -105,9 +110,15 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       left join variants v on v.store_id = o.store_id and v.id = o.variant_id
       left join products p on p.store_id = o.store_id and p.id = o.product_id
       cross join lateral (
-        select fx(s.shop_currency, ${cur}, o.day) as shop_rate,
-               case when o.presentment_currency = ${cur} then o.revenue_presentment
+        select case when o.presentment_currency = ${cur} then o.revenue_presentment
                     else o.revenue_shop * fx(s.shop_currency, ${cur}, o.day) end as rev
+      ) r
+      cross join lateral (
+        select r.rev,
+               case when coalesce(p.cogs_override, v.unit_cost) is not null
+                      then o.quantity * coalesce(p.cogs_override, v.unit_cost) * fx(s.shop_currency, ${cur}, o.day)
+                    when s.default_cogs_pct is not null then r.rev * s.default_cogs_pct / 100
+               end as cogs
       ) x
       where o.store_id = any(${f.storeIds}::int[])
         and o.day between b.d_min and b.d_to
@@ -144,11 +155,14 @@ export async function getReport(f: ReportFilters, level: "product" | "variant" =
       ${variantMode ? sql`v.sku` : sql`null`} as sku,
       p.status, p.image_url, coalesce(p.tags, '{}') as tags, coalesce(p.variant_count, 0) as variant_count,
       ${variantMode ? sql`v.price` : sql`p.price`} * fx(s.shop_currency, ${cur}, b.d_to) as price,
-      ${variantMode ? sql`coalesce(p.cogs_override, v.unit_cost)` : sql`coalesce(p.cogs_override, pc.avg_cost)`}
-        * fx(s.shop_currency, ${cur}, b.d_to) as unit_cost,
+      coalesce(
+        ${variantMode ? sql`coalesce(p.cogs_override, v.unit_cost)` : sql`coalesce(p.cogs_override, pc.avg_cost)`},
+        ${variantMode ? sql`v.price` : sql`p.price`} * s.default_cogs_pct / 100
+      ) * fx(s.shop_currency, ${cur}, b.d_to) as unit_cost,
       coalesce(a.cost, 0) as cost, coalesce(a.impressions, 0) as impressions, coalesce(a.clicks, 0) as clicks,
       coalesce(a.conversions, 0) as conversions, coalesce(a.g_conv_value, 0) as g_conv_value,
       coalesce(sa.qty, 0) as qty, coalesce(sa.revenue, 0) as revenue, coalesce(sa.cogs, 0) as cogs,
+      coalesce(sa.rev_no_cogs, 0) as rev_no_cogs,
       coalesce(rf.refund_qty, 0) as refund_qty, coalesce(rf.refunds, 0) as refunds,
       coalesce(a.cost7, 0) as cost7, coalesce(sa.rev7, 0) as rev7, coalesce(a.imp7, 0) as imp7,
       coalesce(a.cost14, 0) as cost14, coalesce(sa.rev14, 0) as rev14, coalesce(a.imp14, 0) as imp14,
@@ -181,6 +195,8 @@ export type Totals = ReturnType<typeof totals>;
 export function totals(rows: ReportRow[]) {
   const t = rows.reduce(
     (acc, r) => {
+      acc.revNoCogs += r.rev_no_cogs;
+      if (r.rev_no_cogs > 0) acc.productsNoCogs += 1;
       acc.cost += r.cost;
       acc.qty += r.qty;
       acc.revenue += r.revenue;
@@ -191,14 +207,18 @@ export function totals(rows: ReportRow[]) {
       acc.conversions += r.conversions;
       return acc;
     },
-    { cost: 0, qty: 0, revenue: 0, refunds: 0, cogs: 0, clicks: 0, impressions: 0, conversions: 0 },
+    { cost: 0, qty: 0, revenue: 0, refunds: 0, cogs: 0, clicks: 0, impressions: 0, conversions: 0, revNoCogs: 0, productsNoCogs: 0 },
   );
-  const netProfit = t.revenue - t.refunds - t.cogs - t.cost;
+  // Profit is only meaningful when every sale has a cost basis.
+  const cogsComplete = t.revNoCogs < 0.005;
+  const netProfit = cogsComplete ? t.revenue - t.refunds - t.cogs - t.cost : null;
   return {
     ...t,
     products: rows.length,
     roas: t.cost ? t.revenue / t.cost : null,
+    cogsComplete,
+    cogsMissingShare: t.revenue ? t.revNoCogs / t.revenue : 0,
     netProfit,
-    poas: t.cost ? netProfit / t.cost : null,
+    poas: netProfit !== null && t.cost ? netProfit / t.cost : null,
   };
 }

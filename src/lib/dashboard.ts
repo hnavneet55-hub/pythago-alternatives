@@ -24,7 +24,7 @@ export type DashboardRow = ReportRow & {
   roas7: number | null;
   roas14: number | null;
   roas30: number | null;
-  profit: number;
+  profit: number | null; // null when some revenue has no cost of goods
   margin: number | null;
 };
 
@@ -36,8 +36,14 @@ const div = (a: number, b: number) => (b ? a / b : null);
 export function parseParams(sp: SearchParams) {
   const to = isDate(one(sp.to)) ? one(sp.to) : isoDay(1);
   const from = isDate(one(sp.from)) ? one(sp.from) : isoDay(30);
+  // ?stores=1,3 (multi-select); ?store=1 is accepted for older links. Empty means all stores.
+  const storeList = (one(sp.stores) || one(sp.store))
+    .split(",")
+    .map((x) => Number(x))
+    .filter((n) => Number.isInteger(n) && n > 0);
   return {
-    store: one(sp.store) || "all",
+    stores: storeList,
+    cur: one(sp.cur).toUpperCase(),
     from: from <= to ? from : to,
     to,
     country: one(sp.country).toUpperCase() || null,
@@ -57,19 +63,26 @@ export async function getStoreSummaries() {
     from stores order by name`;
 }
 
-export function resolveScope(stores: StoreSummary[], storeParam: string) {
-  const selected = stores.find((s) => String(s.id) === storeParam);
-  if (selected) {
-    return {
-      storeIds: [selected.id],
-      currency: selected.ads_currency ?? selected.shop_currency ?? "EUR",
-      label: selected.name,
-    };
-  }
+export const storeCurrency = (s: StoreSummary) => s.ads_currency ?? s.shop_currency ?? "EUR";
+
+/**
+ * Stores in view and the display currency. Stores sharing one Google Ads currency are shown
+ * in it; a mix of currencies is converted to `cur` (one of theirs) or REPORTING_CURRENCY.
+ */
+export function resolveScope(stores: StoreSummary[], storeIds: number[], cur = "") {
+  const picked = stores.filter((s) => storeIds.includes(s.id));
+  const selected = picked.length ? picked : stores;
+  const currencies = [...new Set(selected.map(storeCurrency))].sort();
+  const reporting = process.env.REPORTING_CURRENCY ?? "EUR";
+  const options = currencies.length > 1 ? [...new Set([reporting, ...currencies])] : currencies;
+  const currency = currencies.length === 1 ? currencies[0] : options.includes(cur) ? cur : reporting;
   return {
-    storeIds: stores.map((s) => s.id),
-    currency: process.env.REPORTING_CURRENCY ?? "EUR",
-    label: "All stores",
+    storeIds: selected.map((s) => s.id),
+    allSelected: picked.length === 0 || picked.length === stores.length,
+    currency,
+    currencyOptions: options,
+    mixed: currencies.length > 1,
+    label: picked.length === 0 || picked.length === stores.length ? "All stores" : picked.map((s) => s.name).join(", "),
   };
 }
 
@@ -84,7 +97,7 @@ export function derive(r: ReportRow, storeName: string): DashboardRow {
     roas7: div(r.rev7, r.cost7),
     roas14: div(r.rev14, r.cost14),
     roas30: div(r.rev30, r.cost30),
-    profit: r.revenue - r.refunds - r.cogs - r.cost,
+    profit: r.rev_no_cogs > 0.005 ? null : r.revenue - r.refunds - r.cogs - r.cost,
     margin: r.price !== null && r.unit_cost !== null ? r.price - r.unit_cost : null,
   };
 }
@@ -106,7 +119,7 @@ export async function loadDashboard(sp: SearchParams) {
   await connection(); // date defaults depend on the current time
   const params = parseParams(sp);
   const stores = await getStoreSummaries();
-  const scope = resolveScope(stores, params.store);
+  const scope = resolveScope(stores, params.stores, params.cur);
   const names = new Map(stores.map((s) => [s.id, s.name]));
 
   let rows: DashboardRow[] = [];
