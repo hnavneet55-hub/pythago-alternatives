@@ -1,7 +1,19 @@
 import type { Totals } from "@/lib/report";
 import { int, money, ratio } from "@/lib/format";
 
-export function SummaryCards({ t, currency, label = "Products" }: { t: Totals; currency: string; label?: string }) {
+type BreakEven = { cogsPct: number | null; roas: number | null } | null;
+
+export function SummaryCards({
+  t,
+  currency,
+  label = "Products",
+  breakEven = null,
+}: {
+  t: Totals;
+  currency: string;
+  label?: string;
+  breakEven?: BreakEven;
+}) {
   const noCogs = !t.cogsComplete;
   const cards = [
     { value: int(t.products), label },
@@ -10,6 +22,18 @@ export function SummaryCards({ t, currency, label = "Products" }: { t: Totals; c
     { value: money(t.revenue, currency, 0), label: "Shopify revenue" },
     { value: money(t.refunds, currency, 0), label: "Refunds", tone: t.refunds ? "text-red-600" : "" },
     { value: ratio(t.roas), label: "ROAS", sub: "Shopify revenue ÷ ad spend" },
+    ...(breakEven
+      ? [
+          breakEven.roas === null
+            ? { value: "–", label: "Break-even ROAS", sub: "Needs cost of goods (last 14 days)", tone: "text-slate-400" }
+            : {
+                value: ratio(breakEven.roas),
+                label: "Break-even ROAS",
+                sub: `Last 14 days · COGS ${breakEven.cogsPct!.toFixed(0)}% of revenue`,
+                tone: t.roas !== null && t.roas < breakEven.roas ? "text-red-600" : "text-slate-900",
+              },
+        ]
+      : []),
     noCogs
       ? {
           value: t.cogs > 0 ? `${money(t.cogs, currency, 0)}+` : "Not set",
@@ -31,7 +55,7 @@ export function SummaryCards({ t, currency, label = "Products" }: { t: Totals; c
       : { value: ratio(t.poas), label: "POAS", sub: "Net profit ÷ ad spend", tone: (t.poas ?? 0) < 0 ? "text-red-600" : "text-emerald-600" },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9">
+    <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 ${breakEven ? "2xl:grid-cols-10" : "2xl:grid-cols-9"}`}>
       {cards.map((c) => (
         <div key={c.label} className="rounded-xl border border-slate-200 bg-white px-4 py-4 text-center shadow-xs">
           <div className={`text-xl font-semibold tabular-nums ${c.tone ?? ""}`}>{c.value}</div>

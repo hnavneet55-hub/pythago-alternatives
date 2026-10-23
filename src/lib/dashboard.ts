@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 import { sql } from "./db";
 import { getReport, totals, type ReportRow } from "./report";
-import { decide, type DecisionResult, type StoreTargets } from "./decisions";
+import { breakEven, decide, type DecisionResult, type StoreTargets } from "./decisions";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -151,14 +151,26 @@ export async function loadDashboard(sp: SearchParams) {
 
   let rows: DashboardRow[] = [];
   let landingCoverage: number | null = null;
+  let breakEven14: { cogsPct: number | null; roas: number | null; from: string } | null = null;
   if (scope.storeIds.length) {
-    const report = await getReport({
-      storeIds: scope.storeIds,
-      currency: scope.currency,
-      from: params.from,
-      to: params.to,
-      country: params.country,
-    });
+    // Main period, plus the last 14 days (ending on the end date) for each store's actual COGS %.
+    const from14 = new Date(new Date(`${params.to}T12:00:00Z`).getTime() - 13 * 86_400_000).toISOString().slice(0, 10);
+    const [report, report14] = await Promise.all([
+      getReport({ storeIds: scope.storeIds, currency: scope.currency, from: params.from, to: params.to, country: params.country }),
+      getReport({ storeIds: scope.storeIds, currency: scope.currency, from: from14, to: params.to }),
+    ]);
+    // COGS % over revenue that has a cost basis (sales without a cost are left out, not counted as 0).
+    const cogs14 = new Map<number, { cogs: number; revenue: number }>();
+    for (const r of report14) {
+      const c = cogs14.get(r.store_id) ?? { cogs: 0, revenue: 0 };
+      c.cogs += r.cogs;
+      c.revenue += r.revenue - r.rev_no_cogs;
+      cogs14.set(r.store_id, c);
+    }
+    const all14 = [...cogs14.entries()].filter(([id]) => scope.storeIds.includes(id)).map(([, v]) => v);
+    const sel = all14.reduce((a, v) => ({ cogs: a.cogs + v.cogs, revenue: a.revenue + v.revenue }), { cogs: 0, revenue: 0 });
+    const selPct = sel.revenue > 0 ? (sel.cogs / sel.revenue) * 100 : null;
+    breakEven14 = { cogsPct: selPct, roas: selPct === null ? null : breakEven({ actualCogsPct14: selPct, targetCogsPct: null }), from: from14 };
     // Store AOV for the price tiers: revenue ÷ distinct orders over the same period and filters.
     const orderCounts = await sql<{ store_id: number; orders: number }[]>`
       select store_id, count(distinct order_id)::int as orders from order_lines
@@ -182,6 +194,10 @@ export async function loadDashboard(sp: SearchParams) {
             targetRoas: Number(s.target_roas) || 2.5,
             targetCogsPct: s.target_cogs_pct === null ? null : Number(s.target_cogs_pct),
             aov: orders ? (revenueByStore.get(s.id) ?? 0) / orders : null,
+            actualCogsPct14: (() => {
+              const c = cogs14.get(s.id);
+              return c && c.revenue > 0 ? (c.cogs / c.revenue) * 100 : null;
+            })(),
           } satisfies StoreTargets,
         ];
       }),
@@ -220,7 +236,7 @@ export async function loadDashboard(sp: SearchParams) {
     .filter((d): d is Date => d !== null)
     .sort((a, b) => a.getTime() - b.getTime())[0];
 
-  return { params, stores, scope, rows, totals: totals(rows), allTags, lastSync: lastSync ?? null, decisionSummary, landingCoverage };
+  return { params, stores, scope, rows, totals: totals(rows), allTags, lastSync: lastSync ?? null, decisionSummary, landingCoverage, breakEven14 };
 }
 
 export async function getCountries(storeIds: number[]) {

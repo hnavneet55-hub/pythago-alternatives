@@ -42,7 +42,14 @@ export type StoreTargets = {
   targetRoas: number;
   targetCogsPct: number | null; // niche target
   aov: number | null; // store average order value in the period
+  actualCogsPct14: number | null; // store's actual COGS % of revenue over the last 14 days
 };
+
+/** Break-even ROAS from the store's actual COGS over the last 14 days, else from the niche target. */
+export function breakEven(t: Pick<StoreTargets, "targetCogsPct" | "actualCogsPct14">) {
+  const pct = t.actualCogsPct14 ?? t.targetCogsPct;
+  return pct !== null && pct < 100 ? 1 / (1 - pct / 100) : null;
+}
 
 export type DecisionResult = {
   decision: Decision | null; // null when there's nothing to judge (no spend, no sales) or no price
@@ -53,7 +60,7 @@ export type DecisionResult = {
   cpa: number | null;
   netRoas: number | null;
   cogsPct: number | null; // actual COGS % of revenue
-  breakEvenRoas: number | null; // from the niche target COGS
+  breakEvenRoas: number | null; // from the store's last-14-day COGS (else the niche target)
   remaining: number | null; // TOO EARLY: spend left before the threshold
   review: string[];
 };
@@ -64,7 +71,7 @@ export function decide(p: DecisionInput, t: StoreTargets): DecisionResult {
   const cpa = p.orders > 0 ? p.cost / p.orders : null;
   const netRoas = p.cost > 0 ? netRevenue / p.cost : null;
   const cogsPct = p.cogsKnown && p.revenue > 0 ? (p.cogs / p.revenue) * 100 : null;
-  const breakEvenRoas = t.targetCogsPct !== null && t.targetCogsPct < 100 ? 1 / (1 - t.targetCogsPct / 100) : null;
+  const breakEvenRoas = breakEven(t);
 
   const base = { cpa, netRoas, cogsPct, breakEvenRoas };
   const empty: DecisionResult = { decision: null, tier: null, multiplier: null, targetCpa: null, threshold: null, remaining: null, review, ...base };

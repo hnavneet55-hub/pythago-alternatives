@@ -62,6 +62,18 @@ const COLUMNS: Column[] = [
   { key: "margin", label: "Margin / unit", title: "Price − cost per item", render: (r, c) => money(r.margin, c) },
 ];
 
+// Light background per column section, so sections are easy to tell apart when scanning across.
+// Solid shades: the header row is sticky, so see-through tints would show rows scrolling under it.
+const TINT = {
+  decision: "bg-violet-50",
+  "7D": "bg-amber-50",
+  "14D": "bg-emerald-50",
+  "30D": "bg-indigo-50",
+  halo: "bg-sky-50",
+} as const;
+// A cell keeps its own colour (ROAS tones); otherwise it gets the section tint.
+const cellBg = (tone: string | undefined, tint: string) => (tone ? tone : tint);
+
 const DECISION_TONE: Record<Decision, string> = {
   ARCHIVE: "bg-red-100 text-red-800 ring-red-200",
   IMPROVE: "bg-amber-100 text-amber-800 ring-amber-200",
@@ -198,19 +210,19 @@ export function MetricsTable({
             <th className="sticky left-0 z-30 bg-white" colSpan={1} />
             <th colSpan={(showStore ? 1 : 0) + (mode === "product" ? 2 : 1)} />
             {mode === "product" && (
-              <th colSpan={DECISION_COLUMNS.length} className="bg-violet-50/40 px-3 pt-2 text-center font-semibold text-violet-800">
+              <th colSpan={DECISION_COLUMNS.length} className={`${TINT.decision} px-3 pt-2 text-center font-semibold text-violet-800`}>
                 Archive / improve
               </th>
             )}
             <th colSpan={15} />
             {(["7D", "14D", "30D"] as const).map((g) => (
-              <th key={g} colSpan={4} className="border-l border-slate-200 px-3 pt-2 text-center font-semibold text-slate-700">
+              <th key={g} colSpan={4} className={`border-l border-slate-200 ${TINT[g]} px-3 pt-2 text-center font-semibold text-slate-700`}>
                 Last {g.replace("D", " days")}
               </th>
             ))}
             <th />
             {mode === "product" && (
-              <th colSpan={HALO_COLUMNS.length} className="border-l border-slate-200 bg-sky-50/50 px-3 pt-2 text-center font-semibold text-sky-800" title={haloNote}>
+              <th colSpan={HALO_COLUMNS.length} className={`border-l border-slate-200 ${TINT.halo} px-3 pt-2 text-center font-semibold text-sky-800`} title={haloNote}>
                 Halo (landed here, bought other products)
               </th>
             )}
@@ -231,10 +243,12 @@ export function MetricsTable({
             {showStore && head("store_name", "Store", undefined, "text-left")}
             {mode === "product" && head("status", "Status", undefined, "text-left")}
             {mode === "product" ? head("variant_count", "Variants") : head("unit_cost", "Unit cost")}
-            {mode === "product" && DECISION_COLUMNS.map((c) => head(c.key, c.label, c.title, "bg-violet-50/40"))}
-            {COLUMNS.map((c) => head(c.key, c.label, c.title, c.group && c.key.startsWith("roas") ? "border-l border-slate-200" : ""))}
+            {mode === "product" && DECISION_COLUMNS.map((c) => head(c.key, c.label, c.title, TINT.decision))}
+            {COLUMNS.map((c) =>
+              head(c.key, c.label, c.title, `${c.group ? TINT[c.group] : ""} ${c.group && c.key.startsWith("roas") ? "border-l border-slate-200" : ""}`),
+            )}
             {mode === "product" &&
-              HALO_COLUMNS.map((c, i) => head(c.key, c.label, c.title, `bg-sky-50/50 ${i === 0 ? "border-l border-slate-200" : ""}`))}
+              HALO_COLUMNS.map((c, i) => head(c.key, c.label, c.title, `${TINT.halo} ${i === 0 ? "border-l border-slate-200" : ""}`))}
           </tr>
         </thead>
         <tbody>
@@ -317,14 +331,14 @@ export function MetricsTable({
               </td>
               {mode === "product" &&
                 DECISION_COLUMNS.map((c) => (
-                  <td key={c.key} className={`whitespace-nowrap px-3 py-2 ${c.className?.(r) ?? ""}`}>
+                  <td key={c.key} className={`whitespace-nowrap px-3 py-2 ${cellBg(c.className?.(r), TINT.decision)}`}>
                     {c.render(r, currency)}
                   </td>
                 ))}
               {COLUMNS.map((c) => (
                 <td
                   key={c.key}
-                  className={`whitespace-nowrap px-3 py-2 ${c.className?.(r) ?? ""} ${c.group && c.key.startsWith("roas") ? "border-l border-slate-200 font-medium" : ""}`}
+                  className={`whitespace-nowrap px-3 py-2 ${c.group ? cellBg(c.className?.(r), TINT[c.group]) : (c.className?.(r) ?? "")} ${c.group && c.key.startsWith("roas") ? "border-l border-slate-200 font-medium" : ""}`}
                 >
                   {c.render(r, currency)}
                 </td>
@@ -333,7 +347,7 @@ export function MetricsTable({
                 HALO_COLUMNS.map((c, i) => (
                   <td
                     key={c.key}
-                    className={`whitespace-nowrap px-3 py-2 ${c.className?.(r) ?? ""} ${i === 0 ? "border-l border-slate-200" : ""}`}
+                    className={`whitespace-nowrap px-3 py-2 ${cellBg(c.className?.(r), TINT.halo)} ${i === 0 ? "border-l border-slate-200" : ""}`}
                   >
                     {c.render(r, currency)}
                   </td>

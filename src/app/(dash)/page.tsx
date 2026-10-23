@@ -21,7 +21,7 @@ export default function DashboardPage({ searchParams }: PageProps<"/">) {
 
 async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const { params, stores, scope, rows, totals, allTags, lastSync, decisionSummary, landingCoverage } = await loadDashboard(sp);
+  const { params, stores, scope, rows, totals, allTags, lastSync, decisionSummary, landingCoverage, breakEven14 } = await loadDashboard(sp);
   const countries = await getCountries(scope.storeIds);
 
   if (stores.length === 0) {
@@ -124,7 +124,7 @@ async function Dashboard({ searchParams }: { searchParams: Promise<SearchParams>
         </div>
       )}
 
-      <SummaryCards t={totals} currency={scope.currency} />
+      <SummaryCards t={totals} currency={scope.currency} breakEven={breakEven14} />
 
       <DecisionStrip summary={decisionSummary} currency={scope.currency} needsNiche={needsNiche} />
 
