@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { useProgress } from "@/lib/progress";
 import { addStore, addStoresBulk, importCogsNow, removeStore, rotateIngestKey, setDefaultCogs, setTargets, syncStore, type ActionState } from "./actions";
 import { NICHES } from "@/lib/decisions";
 
@@ -14,6 +15,7 @@ function Message({ state }: { state: ActionState }) {
 
 export function AddStoreForm() {
   const [state, action, pending] = useActionState(addStore, null);
+  useProgress(pending);
   const [mode, setMode] = useState<"client" | "token">("client");
   return (
     <form action={action} className="space-y-4">
@@ -66,6 +68,7 @@ export function AddStoreForm() {
 export function StoreActions({ storeId, storeName }: { storeId: number; storeName: string }) {
   const [state, setState] = useState<ActionState>(null);
   const [pending, start] = useTransition();
+  useProgress(pending);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <button
@@ -121,6 +124,7 @@ export function CopyBlock({ text }: { text: string }) {
 
 export function CogsForm({ storeId, value }: { storeId: number; value: string }) {
   const [state, action, pending] = useActionState(setDefaultCogs, null);
+  useProgress(pending);
   return (
     <form action={action} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="storeId" value={storeId} />
@@ -146,6 +150,7 @@ export function CogsForm({ storeId, value }: { storeId: number; value: string })
 export function ImportCogsButton() {
   const [state, setState] = useState<ActionState>(null);
   const [pending, start] = useTransition();
+  useProgress(pending);
   return (
     <div className="flex flex-wrap items-center gap-3">
       <button
@@ -162,6 +167,7 @@ export function ImportCogsButton() {
 
 export function TargetsForm({ storeId, niche, cogs, roas }: { storeId: number; niche: string; cogs: string; roas: string }) {
   const [state, action, pending] = useActionState(setTargets, null);
+  useProgress(pending);
   const [nicheValue, setNiche] = useState(niche);
   const [cogsValue, setCogs] = useState(cogs);
   const preset = NICHES.find((n) => n.name === nicheValue);
@@ -211,6 +217,7 @@ export function TargetsForm({ storeId, niche, cogs, roas }: { storeId: number; n
 
 export function BulkAddForm() {
   const [state, action, pending] = useActionState(addStoresBulk, null);
+  useProgress(pending);
   return (
     <form
       action={action}

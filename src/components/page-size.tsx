@@ -1,11 +1,15 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTransition } from "react";
+import { useProgress } from "@/lib/progress";
 
 export function PageSize({ per }: { per: number }) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
+  const [pending, start] = useTransition();
+  useProgress(pending);
   return (
     <label className="flex items-center gap-2 text-sm text-slate-600">
       Products per page
@@ -15,7 +19,7 @@ export function PageSize({ per }: { per: number }) {
           const next = new URLSearchParams(sp.toString());
           next.set("per", e.target.value);
           next.delete("page");
-          router.push(`${pathname}?${next.toString()}`, { scroll: false });
+          start(() => router.push(`${pathname}?${next.toString()}`, { scroll: false }));
         }}
         className="h-8 rounded-md border border-slate-300 bg-white px-2 font-medium"
       >

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { useProgress } from "@/lib/progress";
 
 type Bucket = { count: number; spend: number };
 type Props = {
@@ -24,6 +25,7 @@ export function DecisionStrip({ summary, currency, needsNiche }: Props) {
   const pathname = usePathname();
   const sp = useSearchParams();
   const [pending, start] = useTransition();
+  useProgress(pending);
   const current = sp.get("decision")?.toUpperCase() ?? "";
   const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 });
 

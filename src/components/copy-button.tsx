@@ -7,6 +7,7 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   return (
     <button
       type="button"
+      data-freeze-allow
       onClick={async () => {
         await navigator.clipboard.writeText(text);
         setCopied(true);

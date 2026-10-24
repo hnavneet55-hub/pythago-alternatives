@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { useProgress } from "@/lib/progress";
 
 type Props = {
   countries: string[];
@@ -27,6 +28,7 @@ export function FilterBar({ countries, tags, showProductFilters = true }: Props)
   const pathname = usePathname();
   const sp = useSearchParams();
   const [pending, startTransition] = useTransition();
+  useProgress(pending);
 
   function update(changes: Record<string, string | null>) {
     const next = new URLSearchParams(sp.toString());

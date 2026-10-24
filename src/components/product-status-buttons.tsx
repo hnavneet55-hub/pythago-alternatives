@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useProgress } from "@/lib/progress";
 import { bulkSetStatus } from "@/app/(dash)/product-actions";
 
 const OPTIONS = [
@@ -13,6 +14,7 @@ const OPTIONS = [
 /** Status switch for a single product, on its SKU page. */
 export function ProductStatusButtons({ storeId, productId, status }: { storeId: number; productId: string; status: string | null }) {
   const [state, action, pending] = useActionState(bulkSetStatus, null);
+  useProgress(pending);
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 text-sm">
       <input type="hidden" name="sel" value={`${storeId}:${productId}`} />

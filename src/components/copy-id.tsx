@@ -8,6 +8,7 @@ export function CopyId({ value, label = "product ID" }: { value: string; label?:
   return (
     <button
       type="button"
+      data-freeze-allow
       onClick={async (e) => {
         e.preventDefault();
         e.stopPropagation();

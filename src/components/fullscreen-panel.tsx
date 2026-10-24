@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { FreezeToggle } from "./freeze-toggle";
 
 /** Wraps a panel with a button that expands it to fill the screen (Esc or the button to exit). */
 export function FullscreenPanel({ toolbar, children }: { toolbar: React.ReactNode; children: React.ReactNode }) {
@@ -41,11 +42,17 @@ export function FullscreenPanel({ toolbar, children }: { toolbar: React.ReactNod
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         {toolbar}
+        {/* The header is hidden in full screen, so offer the freeze switch here too. */}
+        {full && (
+          <span className="ml-auto">
+            <FreezeToggle />
+          </span>
+        )}
         <button
           type="button"
           onClick={toggle}
           title={full ? "Exit full screen (Esc)" : "Full screen"}
-          className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          className={`${full ? "" : "ml-auto "}inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50`}
         >
           <svg viewBox="0 0 16 16" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
             {full ? (

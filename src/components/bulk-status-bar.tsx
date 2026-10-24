@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import { useProgress } from "@/lib/progress";
 import { bulkSetStatus } from "@/app/(dash)/product-actions";
 
 export const BULK_FORM_ID = "bulk-status";
@@ -20,6 +21,7 @@ function countSelected() {
 /** Action bar for the product checkboxes in the table (they belong to this form via form="bulk-status"). */
 export function BulkStatusBar() {
   const [state, action, pending] = useActionState(bulkSetStatus, null);
+  useProgress(pending);
   const [selected, setSelected] = useState(0);
   const [status, setStatus] = useState("DRAFT");
 

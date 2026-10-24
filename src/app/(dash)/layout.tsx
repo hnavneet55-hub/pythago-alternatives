@@ -1,9 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { FreezeGuard, FreezeToggle } from "@/components/freeze-toggle";
+import { NavProgress } from "@/components/nav-progress";
 import { logout } from "../login/actions";
 
 export default function DashLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
+      <Suspense fallback={null}>
+        <NavProgress />
+      </Suspense>
+      <FreezeGuard />
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="flex h-14 items-center gap-6 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2 font-semibold">
@@ -21,7 +28,10 @@ export default function DashLayout({ children }: { children: React.ReactNode }) 
               Setup guide
             </Link>
           </nav>
-          <form action={logout} className="ml-auto">
+          <div className="ml-auto">
+            <FreezeToggle />
+          </div>
+          <form action={logout}>
             <button className="text-sm text-slate-500 hover:text-slate-900">Sign out</button>
           </form>
         </div>

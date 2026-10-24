@@ -15,3 +15,23 @@ body {
     transform: scale(0.92);
   }
 }
+
+/* Frozen page: only text selection works (see FreezeGuard). */
+html[data-frozen="true"] body,
+html[data-frozen="true"] body * {
+  cursor: text !important;
+  user-select: text !important;
+  -webkit-user-drag: none !important;
+}
+html[data-frozen="true"] [data-freeze-allow],
+html[data-frozen="true"] [data-freeze-allow] * {
+  cursor: pointer !important;
+}
+html[data-frozen="true"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  border: 3px solid var(--color-sky-500);
+}

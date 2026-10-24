@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
+import { useProgress } from "@/lib/progress";
 
 type Props = {
   stores: { id: number; name: string; currency: string }[];
@@ -16,6 +17,7 @@ export function StoreSwitcher({ stores, selectedIds, currency, currencyOptions, 
   const pathname = usePathname();
   const sp = useSearchParams();
   const [pending, startTransition] = useTransition();
+  useProgress(pending);
   const all = selectedIds.length === 0;
 
   function go(ids: number[], cur?: string) {
